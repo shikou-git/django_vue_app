@@ -1,0 +1,13 @@
+# 编辑器
+.idea/
+.vscode/
+
+# 虚拟环境
+.venv/
+
+# 缓存目录
+__pycache__/
+
+# 日志
+log/
+*.log
