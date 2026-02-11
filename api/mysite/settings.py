@@ -13,69 +13,69 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # 项目根目录路径
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-fa0t@04@4#&+le_*^cz3!t!730fv!filv4h*h-c9ndy(kd7=ao"
+SECRET_KEY = "django-insecure-fa0t@04@4#&+le_*^cz3!t!730fv!filv4h*h-c9ndy(kd7=ao"  # Django密钥，用于加密签名，生产环境必须保密
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = True  # 调试模式开关，生产环境必须设置为False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = []  # 允许访问的主机列表，生产环境需要配置实际域名
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+    "django.contrib.admin",  # Django管理后台应用
+    "django.contrib.auth",  # Django认证系统
+    "django.contrib.contenttypes",  # 内容类型框架
+    "django.contrib.sessions",  # 会话框架
+    "django.contrib.messages",  # 消息框架
+    "django.contrib.staticfiles",  # 静态文件管理
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.middleware.security.SecurityMiddleware",  # 安全中间件，提供安全相关HTTP头
+    "django.contrib.sessions.middleware.SessionMiddleware",  # 会话中间件，处理会话
+    "django.middleware.common.CommonMiddleware",  # 通用中间件，处理URL规范化等
+    "django.middleware.csrf.CsrfViewMiddleware",  # CSRF保护中间件
+    "django.contrib.auth.middleware.AuthenticationMiddleware",  # 认证中间件，处理用户认证
+    "django.contrib.messages.middleware.MessageMiddleware",  # 消息中间件，处理一次性消息
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 点击劫持保护中间件
 ]
 
-ROOT_URLCONF = "mysite.urls"
+ROOT_URLCONF = "mysite.urls"  # 根URL配置模块，指定项目的URL路由入口
 
-TEMPLATES = [
+TEMPLATES = [  # 模板配置
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        "BACKEND": "django.template.backends.django.DjangoTemplates",  # 模板后端引擎
+        "DIRS": [],  # 模板文件搜索目录列表
+        "APP_DIRS": True,  # 是否在已安装应用的目录中查找模板
+        "OPTIONS": {  # 模板选项配置
+            "context_processors": [  # 上下文处理器列表
+                "django.template.context_processors.request",  # 请求上下文处理器
+                "django.contrib.auth.context_processors.auth",  # 认证上下文处理器
+                "django.contrib.messages.context_processors.messages",  # 消息上下文处理器
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = "mysite.wsgi.application"
+WSGI_APPLICATION = "mysite.wsgi.application"  # WSGI应用对象，用于部署
 
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    "default": {  # 默认数据库配置
+        "ENGINE": "django.db.backends.sqlite3",  # 数据库引擎，使用SQLite3
+        "NAME": BASE_DIR / "db.sqlite3",  # 数据库文件路径
     }
 }
 
@@ -85,16 +85,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",  # 验证密码与用户属性（如用户名）的相似度
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",  # 验证密码最小长度
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",  # 验证密码是否为常见密码
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",  # 验证密码是否全为数字
     },
 ]
 
@@ -102,21 +102,21 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en-us"  # 语言代码，设置项目的默认语言
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "UTC"  # 时区设置，设置项目的默认时区
 
-USE_I18N = True
+USE_I18N = True  # 启用国际化支持
 
-USE_TZ = True
+USE_TZ = True  # 启用时区支持
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "static/"  # 静态文件URL前缀，用于在模板中引用静态文件
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 默认主键字段类型，用于自动生成的主键
