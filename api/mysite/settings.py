@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent  # 项目根目录路径
@@ -37,10 +38,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",  # 会话框架
     "django.contrib.messages",  # 消息框架
     "django.contrib.staticfiles",  # 静态文件管理
+    "corsheaders",  # CORS 跨域支持
+    "rest_framework",  # Django REST framework
+    "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
+    "apps.authorization",  # 用户权限管理应用
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",  # 安全中间件，提供安全相关HTTP头
+    "corsheaders.middleware.CorsMiddleware",  # CORS 中间件（必须在 CommonMiddleware 之前）
     "django.contrib.sessions.middleware.SessionMiddleware",  # 会话中间件，处理会话
     "django.middleware.common.CommonMiddleware",  # 通用中间件，处理URL规范化等
     "django.middleware.csrf.CsrfViewMiddleware",  # CSRF保护中间件
@@ -48,6 +54,13 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",  # 消息中间件，处理一次性消息
     "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 点击劫持保护中间件
 ]
+
+# CORS 配置（跨域资源共享）
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vue 前端开发服务器
+    "http://127.0.0.1:5173",
+]
+CORS_ALLOW_CREDENTIALS = True  # 允许携带 Cookie
 
 ROOT_URLCONF = "mysite.urls"  # 根URL配置模块，指定项目的URL路由入口
 
@@ -120,3 +133,34 @@ STATIC_URL = "static/"  # 静态文件URL前缀，用于在模板中引用静态
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 默认主键字段类型，用于自动生成的主键
+
+# Django REST Framework 配置
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT认证（推荐用于前后端分离，无状态）
+        "rest_framework.authentication.SessionAuthentication",  # Session认证（用于浏览器API界面）
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",  # 默认允许所有请求，在视图中单独控制权限
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",  # 分页
+    "PAGE_SIZE": 10,  # 每页显示数量
+    "DEFAULT_FILTER_BACKENDS": [
+        "rest_framework.filters.SearchFilter",  # 搜索过滤
+        "rest_framework.filters.OrderingFilter",  # 排序过滤
+    ],
+}
+
+# Simple JWT 配置
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=24),  # Access Token 有效期 24 小时
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Refresh Token 有效期 7 天
+    "ROTATE_REFRESH_TOKENS": True,  # 刷新时轮换 Refresh Token
+    "BLACKLIST_AFTER_ROTATION": False,  # 不启用黑名单（简化实现）
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),  # 请求头格式：Authorization: Bearer <token>
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+}
