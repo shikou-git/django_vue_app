@@ -12,14 +12,14 @@ class UserProfile(models.Model):
     """
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    employee_id = models.CharField("工号", max_length=20, unique=True, blank=True, null=True, db_comment="员工工号")
+    real_name = models.CharField("真实姓名", max_length=64, blank=True, null=True, db_comment="真实姓名")
 
     class Meta:
         verbose_name = "用户扩展信息"
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return f"{self.user.username} ({self.employee_id or '-'})"
+        return self.user.username
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)

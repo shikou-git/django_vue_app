@@ -26,7 +26,7 @@ class UserFilter(django_filters.FilterSet):
     """用户过滤器"""
 
     # 搜索字段（多字段模糊搜索）
-    search = django_filters.CharFilter(method="filter_search", label="综合搜索（用户名、邮箱、姓名、工号）")
+    search = django_filters.CharFilter(method="filter_search", label="综合搜索（用户名、真实姓名）")
 
     # 状态过滤
     is_active = django_filters.BooleanFilter(field_name="is_active", label="是否激活")
@@ -37,9 +37,6 @@ class UserFilter(django_filters.FilterSet):
 
     # 分组过滤
     group = django_filters.NumberFilter(field_name="groups__id", label="所属分组ID")
-
-    # 工号过滤
-    employee_id = django_filters.CharFilter(field_name="profile__employee_id", lookup_expr="icontains", label="工号")
 
     # 日期范围过滤
     date_joined_start = django_filters.DateFilter(field_name="date_joined", lookup_expr="gte", label="注册开始日期")
@@ -55,11 +52,7 @@ class UserFilter(django_filters.FilterSet):
         """综合搜索方法"""
         if value:
             return queryset.filter(
-                Q(username__icontains=value)
-                | Q(email__icontains=value)
-                | Q(first_name__icontains=value)
-                | Q(last_name__icontains=value)
-                | Q(profile__employee_id__icontains=value)
+                Q(username__icontains=value) | Q(profile__real_name__icontains=value)
             )
         return queryset
 
@@ -71,7 +64,6 @@ class UserFilter(django_filters.FilterSet):
             "is_staff",
             "is_superuser",
             "group",
-            "employee_id",
             "date_joined_start",
             "date_joined_end",
             "last_login_start",

@@ -28,13 +28,12 @@ const groupOptions = ref([])
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
-  { title: '用户名', dataIndex: 'username', key: 'username', width: 120 },
-  { title: '工号', dataIndex: 'employee_id', key: 'employee_id', width: 100 },
-  { title: '邮箱', dataIndex: 'email', key: 'email', ellipsis: true },
-  { title: '姓名', key: 'name', width: 120, customRender: ({ record }) => `${record.first_name || ''} ${record.last_name || ''}`.trim() || '-' },
+  { title: '工号', dataIndex: 'username', key: 'username', width: 120 },
+  { title: '真实姓名', dataIndex: 'real_name', key: 'real_name', width: 120, ellipsis: true },
   { title: '角色', dataIndex: 'groups', key: 'groups', width: 150, ellipsis: true },
   { title: '状态', dataIndex: 'is_active', key: 'is_active', width: 90 },
   { title: '注册时间', dataIndex: 'date_joined', key: 'date_joined', width: 170 },
+  { title: '最后登录', dataIndex: 'last_login', key: 'last_login', width: 170 },
   { title: '操作', key: 'action', width: 260, fixed: 'right' },
 ]
 
@@ -75,6 +74,17 @@ onMounted(() => {
 
 watch([() => pagination.current, () => pagination.pageSize], () => loadList())
 
+// 搜索框实时搜索（防抖 300ms）
+let searchDebounceTimer = null
+watch(searchText, () => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    pagination.current = 1
+    loadList()
+    searchDebounceTimer = null
+  }, 300)
+})
+
 const handleSearch = () => loadList()
 
 // ---------- 新建/编辑 用户 ----------
@@ -85,13 +95,8 @@ const formState = reactive({
   user_id: null,
   username: '',
   password: '',
-  email: '',
-  first_name: '',
-  last_name: '',
-  employee_id: '',
+  real_name: '',
   is_active: true,
-  is_staff: false,
-  is_superuser: false,
   group_ids: [],
 })
 
@@ -101,13 +106,8 @@ const openCreate = () => {
     user_id: null,
     username: '',
     password: '',
-    email: '',
-    first_name: '',
-    last_name: '',
-    employee_id: '',
+    real_name: '',
     is_active: true,
-    is_staff: false,
-    is_superuser: false,
     group_ids: [],
   })
   modalVisible.value = true
@@ -122,13 +122,8 @@ const openEdit = async (record) => {
       user_id: u.id,
       username: u.username,
       password: '',
-      email: u.email || '',
-      first_name: u.first_name || '',
-      last_name: u.last_name || '',
-      employee_id: u.employee_id || '',
+      real_name: u.real_name || '',
       is_active: u.is_active ?? true,
-      is_staff: u.is_staff ?? false,
-      is_superuser: u.is_superuser ?? false,
       group_ids: (u.groups || []).map((g) => g.id),
     })
     modalVisible.value = true
@@ -139,15 +134,11 @@ const openEdit = async (record) => {
 
 const handleModalOk = async () => {
   if (!formState.username.trim()) {
-    message.warning('请输入用户名')
+    message.warning('请输入工号')
     return
   }
   if (!isEdit.value && !formState.password) {
     message.warning('请输入密码')
-    return
-  }
-  if (!formState.employee_id.trim()) {
-    message.warning('请输入工号')
     return
   }
   modalLoading.value = true
@@ -155,13 +146,9 @@ const handleModalOk = async () => {
     if (isEdit.value) {
       await updateUser({
         user_id: formState.user_id,
-        email: formState.email,
-        first_name: formState.first_name,
-        last_name: formState.last_name,
-        employee_id: formState.employee_id,
+        username: formState.username.trim(),
+        real_name: formState.real_name,
         is_active: formState.is_active,
-        is_staff: formState.is_staff,
-        is_superuser: formState.is_superuser,
         group_ids: formState.group_ids,
       })
       message.success('更新成功')
@@ -169,13 +156,8 @@ const handleModalOk = async () => {
       await createUser({
         username: formState.username.trim(),
         password: formState.password,
-        email: formState.email,
-        first_name: formState.first_name,
-        last_name: formState.last_name,
-        employee_id: formState.employee_id.trim(),
+        real_name: formState.real_name,
         is_active: formState.is_active,
-        is_staff: formState.is_staff,
-        is_superuser: formState.is_superuser,
         group_ids: formState.group_ids,
       })
       message.success('创建成功')
@@ -265,7 +247,7 @@ const handleToggleActive = async (record) => {
       <a-space style="margin-bottom: 16px" :size="12">
         <a-input-search
           v-model:value="searchText"
-          placeholder="搜索用户名、邮箱、工号..."
+          placeholder="搜索工号、真实姓名"
           enter-button
           style="width: 260px"
           allow-clear
@@ -312,7 +294,6 @@ const handleToggleActive = async (record) => {
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'groups'">
             <a-tag v-for="g in (record.groups || [])" :key="g.id" style="margin: 0 2px">{{ g.name }}</a-tag>
-            <span v-if="!(record.groups && record.groups.length)">-</span>
           </template>
           <template v-else-if="column.key === 'is_active'">
             <a-tag :color="record.is_active ? 'success' : 'default'">
@@ -341,23 +322,14 @@ const handleToggleActive = async (record) => {
       @ok="handleModalOk"
     >
       <a-form layout="vertical">
-        <a-form-item label="用户名" required>
-          <a-input v-model:value="formState.username" placeholder="用户名" :disabled="isEdit" />
+        <a-form-item label="工号" required>
+          <a-input v-model:value="formState.username" placeholder="工号" />
         </a-form-item>
         <a-form-item v-if="!isEdit" label="密码" required>
           <a-input-password v-model:value="formState.password" placeholder="密码" />
         </a-form-item>
-        <a-form-item label="工号" required>
-          <a-input v-model:value="formState.employee_id" placeholder="工号" />
-        </a-form-item>
-        <a-form-item label="邮箱">
-          <a-input v-model:value="formState.email" placeholder="邮箱" />
-        </a-form-item>
-        <a-form-item label="姓名">
-          <a-space>
-            <a-input v-model:value="formState.first_name" placeholder="名" style="width: 120px" />
-            <a-input v-model:value="formState.last_name" placeholder="姓" style="width: 120px" />
-          </a-space>
+        <a-form-item label="真实姓名">
+          <a-input v-model:value="formState.real_name" placeholder="真实姓名" />
         </a-form-item>
         <a-form-item label="角色">
           <a-select
@@ -368,12 +340,8 @@ const handleToggleActive = async (record) => {
             :options="groupOptions.map((g) => ({ label: g.name, value: g.id }))"
           />
         </a-form-item>
-        <a-form-item>
-          <a-space>
-            <a-checkbox v-model:checked="formState.is_active">启用</a-checkbox>
-            <a-checkbox v-model:checked="formState.is_staff">员工</a-checkbox>
-            <a-checkbox v-model:checked="formState.is_superuser">超级用户</a-checkbox>
-          </a-space>
+        <a-form-item label="启用">
+          <a-switch v-model:checked="formState.is_active" />
         </a-form-item>
       </a-form>
     </a-modal>

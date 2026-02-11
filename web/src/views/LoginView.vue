@@ -18,7 +18,7 @@ const formState = reactive({
 
 const handleLogin = async () => {
   if (!formState.username || !formState.password) {
-    message.warning('请输入用户名和密码')
+    message.warning('请输入工号和密码')
     return
   }
   loading.value = true
@@ -51,7 +51,7 @@ const handleLogin = async () => {
       >
         <a-form-item
           name="username"
-          :rules="[{ required: true, message: '请输入用户名' }]"
+          :rules="[{ required: true, message: '请输入工号' }]"
         >
           <a-input 
             v-model:value="formState.username" 

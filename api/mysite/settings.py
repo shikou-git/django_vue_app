@@ -10,8 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent  # 项目根目录路径
@@ -118,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"  # 语言代码，设置项目的默认语言
 
-TIME_ZONE = "UTC"  # 时区设置，设置项目的默认时区
+TIME_ZONE = "Asia/Shanghai"  # 北京时区
 
 USE_I18N = True  # 启用国际化支持
 
@@ -137,6 +137,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 默认主键字段类型
 
 # Django REST Framework 配置
 REST_FRAMEWORK = {
+    # ========== 全局异常处理 ==========
+    "EXCEPTION_HANDLER": "utils.custom_exception.custom_exception_handler",
     # ========== 认证配置 ==========
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT认证（前后端分离）
@@ -170,3 +172,7 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# Loguru 日志：接管标准 logging，使 Django/DRF 等日志统一输出到 loguru
+from utils.custom_logger import setup_logging_intercept
+setup_logging_intercept()

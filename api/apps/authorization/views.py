@@ -1,15 +1,15 @@
 # views.py
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User, Permission, Group
+from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.decorators import api_view
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.authorization.filters import PermissionFilter, UserFilter
-from apps.authorization.models import UserProfile
 from apps.authorization.serializers import ChangePasswordSerializer, PermissionSerializer
+from utils.custom_decorators import check_permission, skip_authentication, skip_permission
 from utils.custom_response import Resp
-from utils.decorators import check_permission, skip_authentication, skip_permission
 
 
 # ==================== 工具函数 ====================
@@ -17,23 +17,32 @@ from utils.decorators import check_permission, skip_authentication, skip_permiss
 
 def _user_to_dict(user, include_permissions=False):
     """
-    将 User 转为字典，包含 profile 工号
+    将 User 转为字典，包含 profile.real_name
     使用 getattr 兼容尚未创建 profile 的老用户
+    时间字段转换为配置的时区（如 Asia/Shanghai）
     """
     profile = getattr(user, "profile", None)
-    employee_id = profile.employee_id if profile else ""
+    real_name = (profile.real_name or "").strip() if profile else ""
+
+    date_joined_str = ""
+    if user.date_joined:
+        local_dt = timezone.localtime(user.date_joined)
+        date_joined_str = local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    last_login_str = ""
+    if user.last_login:
+        local_dt = timezone.localtime(user.last_login)
+        last_login_str = local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
     data = {
         "id": user.id,
         "username": user.username,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "employee_id": employee_id,
+        "real_name": real_name,
         "is_active": user.is_active,
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
-        "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
+        "date_joined": date_joined_str,
+        "last_login": last_login_str,
         "groups": [{"id": g.id, "name": g.name} for g in user.groups.all()],
     }
     if include_permissions:
@@ -70,6 +79,10 @@ def user_login(request):
 
     if not user.is_active:
         return Resp.forbidden(msg="该账户已被禁用")
+
+    # 更新最后登录时间
+    user.last_login = timezone.now()
+    user.save(update_fields=["last_login"])
 
     # 生成 JWT Token
     refresh = RefreshToken.for_user(user)
@@ -133,18 +146,15 @@ def get_current_user(request):
     返回: {"msg": "获取成功", "code": 0, "data": {...}}
     """
     user = request.user
-    roles = [{"id": g.id, "name": g.name} for g in user.groups.all()]
     profile = getattr(user, "profile", None)
-    employee_id = profile.employee_id if profile else ""
+    real_name = (profile.real_name or "").strip() if profile else ""
+    roles = [{"id": g.id, "name": g.name} for g in user.groups.all()]
 
     return Resp.success(
         data={
             "id": user.id,
             "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "employee_id": employee_id,
+            "real_name": real_name,
             "is_active": user.is_active,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
@@ -163,7 +173,7 @@ def get_user_list(request):
     """
     获取用户列表（使用 UserFilter）
     POST /api/auth/get-user-list/
-    body: page, page_size, 以及 UserFilter 支持的 search/is_active/group/employee_id/date_joined_* /last_login_* 等
+    body: page, page_size, 以及 UserFilter 支持的 search/is_active/group/date_joined_* /last_login_* 等
     """
     data = request.data
     # 只把 Filter 支持的字段从 body 里传给 UserFilter，空值由 Filter 内部忽略
@@ -210,46 +220,40 @@ def get_user_detail(request):
 @check_permission("auth.add_user")
 def create_user(request):
     """
-    创建用户
+    创建用户（username 可填工号）
     POST /api/auth/create-user/
-    {"username": "test", "password": "123456", "email": "test@example.com", "employee_id": "E001", "group_ids": [1,2]}
+    {"username": "工号或用户名", "password": "123456", "real_name": "真实姓名", "is_active": true, "group_ids": [1,2]}
     """
 
     data = request.data
 
     username = data.get("username")
     password = data.get("password")
-    employee_id = data.get("employee_id")
 
     if not username:
         return Resp.bad_request(msg="username 是必填项")
     if not password:
         return Resp.bad_request(msg="password 是必填项")
-    if not employee_id:
-        return Resp.bad_request(msg="employee_id 是必填项")
 
     if User.objects.filter(username=username).exists():
         return Resp.error(msg="用户名已存在", code=400)
-
-    employee_id = data.get("employee_id", "").strip()
-    if employee_id and UserProfile.objects.filter(employee_id=employee_id).exists():
-        return Resp.error(msg="工号已存在", code=400)
 
     # 创建用户（signal 会自动创建 UserProfile）
     user = User.objects.create_user(
         username=username,
         password=password,
-        email=data.get("email", ""),
-        first_name=data.get("first_name", ""),
-        last_name=data.get("last_name", ""),
+        email="",
+        first_name="",
+        last_name="",
         is_active=data.get("is_active", True),
-        is_staff=data.get("is_staff", False),
-        is_superuser=data.get("is_superuser", False),
+        is_staff=False,
+        is_superuser=False,
     )
 
-    # 设置工号
-    if employee_id:
-        user.profile.employee_id = employee_id
+    # 设置真实姓名
+    real_name = (data.get("real_name") or "").strip()
+    if real_name and getattr(user, "profile", None):
+        user.profile.real_name = real_name
         user.profile.save()
 
     # 设置角色
@@ -257,7 +261,7 @@ def create_user(request):
     if group_ids:
         user.groups.set(group_ids)
 
-    return Resp.success(data={"user_id": user.id, "employee_id": user.profile.employee_id or ""}, msg="用户创建成功")
+    return Resp.success(data={"user_id": user.id}, msg="用户创建成功")
 
 
 @api_view(["POST"])
@@ -266,7 +270,7 @@ def update_user(request):
     """
     更新用户
     POST /api/auth/update-user/
-    {"user_id": 1, "email": "", "first_name": "", "last_name": "", "employee_id": "", "is_active": true, "is_staff": false, "is_superuser": false, "group_ids": [1,2]}
+    {"user_id": 1, "username": "工号", "real_name": "", "is_active": true, "group_ids": [1,2]}
     """
 
     data = request.data
@@ -280,31 +284,24 @@ def update_user(request):
     except User.DoesNotExist:
         return Resp.not_found(msg="用户不存在")
 
-    # 工号唯一性（排除当前用户）
-    employee_id = data.get("employee_id")
-    if employee_id is not None:
-        employee_id = str(employee_id).strip()
-        if employee_id and UserProfile.objects.filter(employee_id=employee_id).exclude(user=user).exists():
+    # 工号（username）唯一性检查
+    if "username" in data:
+        new_username = (data.get("username") or "").strip()
+        if not new_username:
+            return Resp.bad_request(msg="工号不能为空")
+        if User.objects.filter(username=new_username).exclude(id=user.id).exists():
             return Resp.error(msg="工号已被其他用户使用", code=400)
+        user.username = new_username
 
     # 可更新字段
-    if "email" in data:
-        user.email = data["email"]
-    if "first_name" in data:
-        user.first_name = data["first_name"]
-    if "last_name" in data:
-        user.last_name = data["last_name"]
     if "is_active" in data:
         user.is_active = data["is_active"]
-    if "is_staff" in data:
-        user.is_staff = data["is_staff"]
-    if "is_superuser" in data:
-        user.is_superuser = data["is_superuser"]
 
     user.save()
 
-    if employee_id is not None and getattr(user, "profile", None):
-        user.profile.employee_id = employee_id or ""
+    # 真实姓名写入 profile
+    if "real_name" in data and getattr(user, "profile", None):
+        user.profile.real_name = (data.get("real_name") or "").strip() or None
         user.profile.save()
 
     group_ids = data.get("group_ids")
