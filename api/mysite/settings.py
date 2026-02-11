@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",  # 会话框架
     "django.contrib.messages",  # 消息框架
     "django.contrib.staticfiles",  # 静态文件管理
+    "django_filters",  # 过滤器
     "corsheaders",  # CORS 跨域支持
     "rest_framework",  # Django REST framework
     "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
@@ -136,16 +137,21 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 默认主键字段类型
 
 # Django REST Framework 配置
 REST_FRAMEWORK = {
+    # ========== 认证配置 ==========
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT认证（推荐用于前后端分离，无状态）
-        "rest_framework.authentication.SessionAuthentication",  # Session认证（用于浏览器API界面）
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT认证（前后端分离）
+        "rest_framework.authentication.SessionAuthentication",  # Session认证（API调试界面）
     ],
+    # ========== 权限配置：默认要求认证 ==========
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",  # 默认允许所有请求，在视图中单独控制权限
+        "rest_framework.permissions.IsAuthenticated",  # 所有 API 默认需要登录
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",  # 分页
-    "PAGE_SIZE": 10,  # 每页显示数量
+    # ========== 分页配置 ==========
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    # ========== 过滤器配置 ==========
     "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",  # Django-filter 支持
         "rest_framework.filters.SearchFilter",  # 搜索过滤
         "rest_framework.filters.OrderingFilter",  # 排序过滤
     ],

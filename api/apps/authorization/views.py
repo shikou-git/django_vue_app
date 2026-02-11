@@ -1,24 +1,61 @@
-"""
-用户权限管理视图
-使用 Django REST Framework + JWT 认证，所有接口统一 POST 方法
-"""
-
+# views.py
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User, Group, Permission
-from django.db.models import Q
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from django.contrib.auth.models import User, Permission
+from django.contrib.contenttypes.models import ContentType
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import BasePermission
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from utils.custom_response import Resp
 
+from apps.authorization.filters import PermissionFilter, UserFilter
+from apps.authorization.models import UserProfile
+from apps.authorization.serializers import ChangePasswordSerializer, PermissionSerializer
+from utils.custom_response import Resp
+from utils.decorators import skip_authentication, skip_permission
+
+
+# ==================== 自定义权限类 ====================
+
+
+class IsAdminUser(BasePermission):
+    """要求用户是管理员（staff 或 superuser）"""
+
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+
+
+def _user_to_dict(user, include_permissions=False):
+    """
+    将 User 转为字典，包含 profile 工号
+    使用 getattr 兼容尚未创建 profile 的老用户
+    """
+    profile = getattr(user, "profile", None)
+    employee_id = profile.employee_id if profile else ""
+
+    data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "employee_id": employee_id,
+        "is_active": user.is_active,
+        "is_staff": user.is_staff,
+        "is_superuser": user.is_superuser,
+        "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
+        "groups": [{"id": g.id, "name": g.name} for g in user.groups.all()],
+    }
+    if include_permissions:
+        data["permissions"] = [{"id": p.id, "name": p.name, "codename": p.codename} for p in user.user_permissions.all()]
+    return data
 
 
 # ==================== 登录相关 ====================
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@skip_permission
+@skip_authentication
 def user_login(request):
     """
     用户登录 - 使用 JWT 认证
@@ -44,18 +81,32 @@ def user_login(request):
     # 生成 JWT Token
     refresh = RefreshToken.for_user(user)
 
-    return Resp.success(
-        data={
-            "access": str(refresh.access_token),  # Access Token（短期有效）
-            "refresh": str(refresh),  # Refresh Token（用于刷新 Access Token）
-        },
-        msg="登录成功",
-    )
+    return Resp.success(data={"access": str(refresh.access_token), "refresh": str(refresh)}, msg="登录成功")
 
 
 @api_view(["POST"])
-@authentication_classes([JWTAuthentication])
-@permission_classes([IsAuthenticated])
+@skip_permission
+@skip_authentication
+def refresh_token(request):
+    """
+    刷新 Access Token
+    POST /api/auth/refresh-token/
+    {"refresh": "<refresh_token>"}
+    返回: {"msg": "刷新成功", "code": 0, "data": {"access": "...", "refresh": "..."}}
+    """
+    refresh_token = request.data.get("refresh")
+
+    if not refresh_token:
+        return Resp.bad_request(msg="refresh token 是必填项")
+
+    try:
+        refresh = RefreshToken(refresh_token)
+        return Resp.success(data={"access": str(refresh.access_token), "refresh": str(refresh)}, msg="刷新成功")
+    except Exception as e:
+        return Resp.unauthorized(msg="无效的 refresh token")
+
+
+@api_view(["POST"])
 def user_logout(request):
     """
     用户登出 - JWT 无状态，客户端删除 Token 即可
@@ -79,8 +130,6 @@ def user_logout(request):
 
 
 @api_view(["POST"])
-@authentication_classes([JWTAuthentication])
-@permission_classes([IsAuthenticated])
 def get_current_user(request):
     """
     获取当前用户信息
@@ -90,6 +139,8 @@ def get_current_user(request):
     """
     user = request.user
     roles = [{"id": g.id, "name": g.name} for g in user.groups.all()]
+    profile = getattr(user, "profile", None)
+    employee_id = profile.employee_id if profile else ""
 
     return Resp.success(
         data={
@@ -98,6 +149,7 @@ def get_current_user(request):
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "employee_id": employee_id,
             "is_active": user.is_active,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
@@ -107,317 +159,426 @@ def get_current_user(request):
     )
 
 
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def refresh_token(request):
-    """
-    刷新 Access Token
-    POST /api/auth/refresh-token/
-    {"refresh": "<refresh_token>"}
-    返回: {"msg": "刷新成功", "code": 0, "data": {"access": "...", "refresh": "..."}}
-    """
-    refresh_token = request.data.get("refresh")
-
-    if not refresh_token:
-        return Resp.bad_request(msg="refresh token 是必填项")
-
-    try:
-        refresh = RefreshToken(refresh_token)
-        # 生成新的 access token
-        return Resp.success(
-            data={
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),  # 如果启用了 ROTATE_REFRESH_TOKENS，会返回新的 refresh token
-            },
-            msg="刷新成功",
-        )
-    except Exception as e:
-        return Resp.unauthorized(msg="无效的 refresh token")
-
-
 # ==================== 用户管理 ====================
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def get_user_list(request):
-#     """
-#     获取用户列表
-#     POST /api/auth/get-user-list/
-#     {"page": 1, "page_size": 10, "search": "", "is_active": true}
-#     """
-#     data = request.data
-#     queryset = User.objects.all().order_by("-date_joined")
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def get_user_list(request):
+    """
+    获取用户列表（使用 UserFilter）
+    POST /api/auth/get-user-list/
+    body: page, page_size, 以及 UserFilter 支持的 search/is_active/group/employee_id/date_joined_* /last_login_* 等
+    """
+    data = request.data
+    # 只把 Filter 支持的字段从 body 里传给 UserFilter，空值由 Filter 内部忽略
+    filter_params = {k: data[k] for k in UserFilter.base_filters if k in data}
+    queryset = UserFilter(data=filter_params, queryset=User.objects.select_related("profile")).qs.order_by("-date_joined")
 
-#     # 搜索
-#     search = data.get("search", "").strip()
-#     if search:
-#         queryset = queryset.filter(
-#             Q(username__icontains=search) | Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search)
-#         )
+    # 分页
+    page = data.get("page", 1)
+    page_size = data.get("page_size", 10)
+    start = (page - 1) * page_size
+    end = start + page_size
 
-#     # 筛选
-#     if data.get("is_active") is not None:
-#         queryset = queryset.filter(is_active=data["is_active"])
-#     if data.get("is_staff") is not None:
-#         queryset = queryset.filter(is_staff=data["is_staff"])
-#     if data.get("is_superuser") is not None:
-#         queryset = queryset.filter(is_superuser=data["is_superuser"])
-#     if data.get("group"):
-#         queryset = queryset.filter(groups__id=data["group"])
+    total = queryset.count()
+    users = queryset[start:end]
 
-#     # 分页
-#     page = data.get("page", 1)
-#     page_size = data.get("page_size", 10)
-#     start = (page - 1) * page_size
-#     end = start + page_size
+    results = [_user_to_dict(u) for u in users]
 
-#     total = queryset.count()
-#     users = queryset[start:end]
-
-#     results = []
-#     for user in users:
-#         results.append(
-#             {
-#                 "id": user.id,
-#                 "username": user.username,
-#                 "email": user.email,
-#                 "first_name": user.first_name,
-#                 "last_name": user.last_name,
-#                 "is_active": user.is_active,
-#                 "is_staff": user.is_staff,
-#                 "is_superuser": user.is_superuser,
-#                 "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
-#                 "groups": [{"id": g.id, "name": g.name} for g in user.groups.all()],
-#             }
-#         )
-
-#     return Response({"results": results, "total": total, "page": page, "page_size": page_size})
+    return Resp.success(data={"results": results, "total": total, "page": page, "page_size": page_size}, msg="获取成功")
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def get_user_detail(request):
-#     """
-#     获取用户详情
-#     POST /api/auth/get-user-detail/
-#     {"user_id": 1}
-#     """
-#     user_id = request.data.get("user_id")
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def get_user_detail(request):
+    """
+    获取用户详情
+    POST /api/auth/get-user-detail/
+    {"user_id": 1}
+    """
+    user_id = request.data.get("user_id")
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
 
-#     try:
-#         user = User.objects.get(id=user_id)
-#         return Response(
-#             {
-#                 "id": user.id,
-#                 "username": user.username,
-#                 "email": user.email,
-#                 "first_name": user.first_name,
-#                 "last_name": user.last_name,
-#                 "is_active": user.is_active,
-#                 "is_staff": user.is_staff,
-#                 "is_superuser": user.is_superuser,
-#                 "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
-#                 "groups": [{"id": g.id, "name": g.name} for g in user.groups.all()],
-#                 "permissions": [{"id": p.id, "name": p.name, "codename": p.codename} for p in user.user_permissions.all()],
-#             }
-#         )
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        user = User.objects.select_related("profile").get(id=user_id)
+        return Resp.success(data=_user_to_dict(user, include_permissions=True), msg="获取成功")
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def create_user(request):
-#     """
-#     创建用户
-#     POST /api/auth/create-user/
-#     {"username": "test", "password": "123456", "email": "test@example.com", "group_ids": [1,2]}
-#     """
-#     data = request.data
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def create_user(request):
+    """
+    创建用户
+    POST /api/auth/create-user/
+    {"username": "test", "password": "123456", "email": "test@example.com", "employee_id": "E001", "group_ids": [1,2]}
+    """
 
-#     username = data.get("username")
-#     password = data.get("password")
-#     email = data.get("email", "")
+    data = request.data
 
-#     if not username:
-#         return Response({"error": "username 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
-#     if not password:
-#         return Response({"error": "password 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    username = data.get("username")
+    password = data.get("password")
+    employee_id = data.get("employee_id")
 
-#     if User.objects.filter(username=username).exists():
-#         return Response({"error": "用户名已存在"}, status=status.HTTP_400_BAD_REQUEST)
+    if not username:
+        return Resp.bad_request(msg="username 是必填项")
+    if not password:
+        return Resp.bad_request(msg="password 是必填项")
+    if not employee_id:
+        return Resp.bad_request(msg="employee_id 是必填项")
 
-#     # 创建用户
-#     user = User.objects.create_user(
-#         username=username,
-#         password=password,
-#         email=email,
-#         first_name=data.get("first_name", ""),
-#         last_name=data.get("last_name", ""),
-#         is_active=data.get("is_active", True),
-#         is_staff=data.get("is_staff", False),
-#         is_superuser=data.get("is_superuser", False),
-#     )
+    if User.objects.filter(username=username).exists():
+        return Resp.error(msg="用户名已存在", code=400)
 
-#     # 设置角色
-#     group_ids = data.get("group_ids", [])
-#     if group_ids:
-#         user.groups.set(group_ids)
+    employee_id = data.get("employee_id", "").strip()
+    if employee_id and UserProfile.objects.filter(employee_id=employee_id).exists():
+        return Resp.error(msg="工号已存在", code=400)
 
-#     return Response({"message": "用户创建成功", "user_id": user.id})
+    # 创建用户（signal 会自动创建 UserProfile）
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        email=data.get("email", ""),
+        first_name=data.get("first_name", ""),
+        last_name=data.get("last_name", ""),
+        is_active=data.get("is_active", True),
+        is_staff=data.get("is_staff", False),
+        is_superuser=data.get("is_superuser", False),
+    )
 
+    # 设置工号
+    if employee_id:
+        user.profile.employee_id = employee_id
+        user.profile.save()
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def update_user(request):
-#     """
-#     更新用户
-#     POST /api/auth/update-user/
-#     {"user_id": 1, "email": "new@example.com", "group_ids": [1,2]}
-#     """
-#     data = request.data
-#     user_id = data.get("user_id")
+    # 设置角色
+    group_ids = data.get("group_ids", [])
+    if group_ids:
+        user.groups.set(group_ids)
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
-
-#     try:
-#         user = User.objects.get(id=user_id)
-
-#         # 更新字段
-#         if "email" in data:
-#             user.email = data["email"]
-#         if "first_name" in data:
-#             user.first_name = data["first_name"]
-#         if "last_name" in data:
-#             user.last_name = data["last_name"]
-#         if "is_active" in data:
-#             user.is_active = data["is_active"]
-#         if "is_staff" in data:
-#             user.is_staff = data["is_staff"]
-#         if "is_superuser" in data:
-#             user.is_superuser = data["is_superuser"]
-
-#         user.save()
-
-#         # 更新角色
-#         if "group_ids" in data:
-#             user.groups.set(data["group_ids"])
-
-#         return Response({"message": "用户更新成功"})
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    return Resp.success(data={"user_id": user.id, "employee_id": user.profile.employee_id or ""}, msg="用户创建成功")
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def delete_user(request):
-#     """
-#     删除用户
-#     POST /api/auth/delete-user/
-#     {"user_id": 1}
-#     """
-#     user_id = request.data.get("user_id")
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def update_user(request):
+    """
+    更新用户
+    POST /api/auth/update-user/
+    {"user_id": 1, "email": "", "first_name": "", "last_name": "", "employee_id": "", "is_active": true, "is_staff": false, "is_superuser": false, "group_ids": [1,2]}
+    """
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    data = request.data
+    user_id = data.get("user_id")
 
-#     try:
-#         user = User.objects.get(id=user_id)
-#         username = user.username
-#         user.delete()
-#         return Response({"message": f"用户 {username} 已删除"})
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
 
+    try:
+        user = User.objects.select_related("profile").get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def change_password(request):
-#     """
-#     修改密码
-#     POST /api/auth/change-password/
-#     {"user_id": 1, "old_password": "123", "new_password": "456"}
-#     """
-#     data = request.data
-#     user_id = data.get("user_id")
-#     old_password = data.get("old_password")
-#     new_password = data.get("new_password")
+    # 工号唯一性（排除当前用户）
+    employee_id = data.get("employee_id")
+    if employee_id is not None:
+        employee_id = str(employee_id).strip()
+        if employee_id and UserProfile.objects.filter(employee_id=employee_id).exclude(user=user).exists():
+            return Resp.error(msg="工号已被其他用户使用", code=400)
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
-#     if not old_password:
-#         return Response({"error": "old_password 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
-#     if not new_password:
-#         return Response({"error": "new_password 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    # 可更新字段
+    if "email" in data:
+        user.email = data["email"]
+    if "first_name" in data:
+        user.first_name = data["first_name"]
+    if "last_name" in data:
+        user.last_name = data["last_name"]
+    if "is_active" in data:
+        user.is_active = data["is_active"]
+    if "is_staff" in data:
+        user.is_staff = data["is_staff"]
+    if "is_superuser" in data:
+        user.is_superuser = data["is_superuser"]
 
-#     try:
-#         user = User.objects.get(id=user_id)
-#         if not user.check_password(old_password):
-#             return Response({"error": "旧密码错误"}, status=status.HTTP_400_BAD_REQUEST)
+    user.save()
 
-#         user.set_password(new_password)
-#         user.save()
-#         return Response({"message": "密码修改成功"})
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    if employee_id is not None and getattr(user, "profile", None):
+        user.profile.employee_id = employee_id or ""
+        user.profile.save()
+
+    group_ids = data.get("group_ids")
+    if group_ids is not None:
+        user.groups.set(group_ids)
+
+    return Resp.success(data=_user_to_dict(user), msg="更新成功")
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def reset_password(request):
-#     """
-#     重置密码（管理员）
-#     POST /api/auth/reset-password/
-#     {"user_id": 1, "new_password": "123456"}
-#     """
-#     data = request.data
-#     user_id = data.get("user_id")
-#     new_password = data.get("new_password")
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def delete_user(request):
+    """
+    删除用户
+    POST /api/auth/delete-user/
+    {"user_id": 1}
+    """
+    user_id = request.data.get("user_id")
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
-#     if not new_password:
-#         return Response({"error": "new_password 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
 
-#     try:
-#         user = User.objects.get(id=user_id)
-#         user.set_password(new_password)
-#         user.save()
-#         return Response({"message": "密码重置成功"})
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    if request.user.id == user_id:
+        return Resp.forbidden(msg="不能删除当前登录用户")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
+
+    user.delete()
+    return Resp.success(msg="删除成功")
 
 
-# @api_view(["POST"])
-# @authentication_classes([TokenAuthentication])
-# @permission_classes([IsAuthenticated, IsAdminUser])
-# def toggle_user_active(request):
-#     """
-#     切换用户激活状态
-#     POST /api/auth/toggle-user-active/
-#     {"user_id": 1}
-#     """
-#     user_id = request.data.get("user_id")
+@api_view(["POST"])
+def change_password(request):
+    """
+    当前用户修改自己的密码
+    POST /api/auth/change-password/
+    {"old_password": "", "new_password": "", "confirm_password": ""}
+    """
 
-#     if not user_id:
-#         return Response({"error": "user_id 是必填项"}, status=status.HTTP_400_BAD_REQUEST)
+    serializer = ChangePasswordSerializer(data=request.data)
+    if not serializer.is_valid():
+        errors = serializer.errors
+        if "non_field_errors" in errors:
+            msg = errors["non_field_errors"][0] if isinstance(errors["non_field_errors"], list) else str(errors["non_field_errors"])
+        else:
+            first_key = next(iter(errors))
+            first_val = errors[first_key]
+            msg = first_val[0] if isinstance(first_val, list) else str(first_val)
+        return Resp.bad_request(msg=msg)
 
-#     try:
-#         user = User.objects.get(id=user_id)
-#         user.is_active = not user.is_active
-#         user.save()
-#         return Response({"message": f'用户已{"激活" if user.is_active else "禁用"}', "is_active": user.is_active})
-#     except User.DoesNotExist:
-#         return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+    user = request.user
+    if not user.check_password(serializer.validated_data["old_password"]):
+        return Resp.error(msg="原密码错误", code=400)
+
+    user.set_password(serializer.validated_data["new_password"])
+    user.save()
+    return Resp.success(msg="密码修改成功")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def reset_password(request):
+    """
+    管理员重置指定用户密码
+    POST /api/auth/reset-password/
+    {"user_id": 1, "new_password": "123456"}
+    """
+    user_id = request.data.get("user_id")
+    new_password = request.data.get("new_password")
+
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
+    if not new_password:
+        return Resp.bad_request(msg="new_password 是必填项")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
+
+    user.set_password(new_password)
+    user.save()
+    return Resp.success(msg="密码已重置")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def toggle_user_active(request):
+    """
+    切换用户启用/禁用状态
+    POST /api/auth/toggle-user-active/
+    {"user_id": 1}
+    """
+    user_id = request.data.get("user_id")
+
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
+
+    if request.user.id == user_id:
+        return Resp.forbidden(msg="不能禁用当前登录用户")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
+
+    user.is_active = not user.is_active
+    user.save()
+    return Resp.success(
+        data={"user_id": user.id, "is_active": user.is_active},
+        msg="已" + ("启用" if user.is_active else "禁用") + "该用户",
+    )
+
+
+# ==================== 权限管理 ====================
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def get_permission_list(request):
+    """
+    获取权限列表（支持筛选、分页）
+    POST /api/auth/get_permission_list/
+    body: page, page_size, search, content_type
+    """
+    data = request.data
+    filter_params = {k: data[k] for k in PermissionFilter.base_filters if k in data}
+    queryset = PermissionFilter(data=filter_params, queryset=Permission.objects.select_related("content_type")).qs.order_by(
+        "content_type__app_label", "content_type__model", "codename"
+    )
+
+    page = data.get("page", 1)
+    page_size = data.get("page_size", 10)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    total = queryset.count()
+    permissions = queryset[start:end]
+    serializer = PermissionSerializer(permissions, many=True)
+
+    return Resp.success(data={"results": serializer.data, "total": total, "page": page, "page_size": page_size}, msg="获取成功")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def get_permission_detail(request):
+    """
+    获取权限详情
+    POST /api/auth/get_permission_detail/
+    {"permission_id": 1}
+    """
+    permission_id = request.data.get("permission_id")
+
+    if not permission_id:
+        return Resp.bad_request(msg="permission_id 是必填项")
+
+    try:
+        perm = Permission.objects.select_related("content_type").get(id=permission_id)
+        serializer = PermissionSerializer(perm)
+        return Resp.success(data=serializer.data, msg="获取成功")
+    except Permission.DoesNotExist:
+        return Resp.not_found(msg="权限不存在")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def create_permission(request):
+    """
+    创建权限（自定义权限）
+    POST /api/auth/create_permission/
+    {"content_type_id": 1, "codename": "custom_action", "name": "自定义操作"}
+    """
+    data = request.data
+    content_type_id = data.get("content_type_id")
+    codename = (data.get("codename") or "").strip()
+    name = (data.get("name") or "").strip()
+
+    if not content_type_id:
+        return Resp.bad_request(msg="content_type_id 是必填项")
+    if not codename:
+        return Resp.bad_request(msg="codename 是必填项")
+    if not name:
+        return Resp.bad_request(msg="name 是必填项")
+
+    try:
+        content_type = ContentType.objects.get(pk=content_type_id)
+    except ContentType.DoesNotExist:
+        return Resp.not_found(msg="内容类型不存在")
+
+    if Permission.objects.filter(content_type=content_type, codename=codename).exists():
+        return Resp.error(msg="该内容类型下 codename 已存在", code=400)
+
+    perm = Permission.objects.create(content_type=content_type, codename=codename, name=name)
+    serializer = PermissionSerializer(perm)
+    return Resp.success(data=serializer.data, msg="创建成功")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def update_permission(request):
+    """
+    更新权限
+    POST /api/auth/update_permission/
+    {"permission_id": 1, "name": "新名称", "codename": "new_codename"}
+    """
+    data = request.data
+    permission_id = data.get("permission_id")
+
+    if not permission_id:
+        return Resp.bad_request(msg="permission_id 是必填项")
+
+    try:
+        perm = Permission.objects.select_related("content_type").get(id=permission_id)
+    except Permission.DoesNotExist:
+        return Resp.not_found(msg="权限不存在")
+
+    if "name" in data and data["name"] is not None:
+        perm.name = data["name"].strip()
+    if "codename" in data and data["codename"] is not None:
+        new_codename = data["codename"].strip()
+        if Permission.objects.filter(content_type=perm.content_type, codename=new_codename).exclude(pk=perm.pk).exists():
+            return Resp.error(msg="该内容类型下 codename 已存在", code=400)
+        perm.codename = new_codename
+
+    perm.save()
+    serializer = PermissionSerializer(perm)
+    return Resp.success(data=serializer.data, msg="更新成功")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def delete_permission(request):
+    """
+    删除权限
+    POST /api/auth/delete_permission/
+    {"permission_id": 1}
+    """
+    permission_id = request.data.get("permission_id")
+
+    if not permission_id:
+        return Resp.bad_request(msg="permission_id 是必填项")
+
+    try:
+        perm = Permission.objects.get(id=permission_id)
+    except Permission.DoesNotExist:
+        return Resp.not_found(msg="权限不存在")
+
+    perm.delete()
+    return Resp.success(msg="删除成功")
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def get_content_type_list(request):
+    """
+    获取内容类型列表（用于创建/筛选权限时的下拉选项）
+    POST /api/auth/get_content_type_list/
+    body 可选: app_label, model（筛选）
+    """
+    data = request.data or {}
+    qs = ContentType.objects.all().order_by("app_label", "model")
+
+    app_label = data.get("app_label")
+    if app_label:
+        qs = qs.filter(app_label__icontains=app_label)
+    model = data.get("model")
+    if model:
+        qs = qs.filter(model__icontains=model)
+
+    results = [{"id": ct.id, "app_label": ct.app_label, "model": ct.model} for ct in qs]
+    return Resp.success(data={"results": results, "total": len(results)}, msg="获取成功")

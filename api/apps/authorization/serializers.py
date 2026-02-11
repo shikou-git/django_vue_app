@@ -1,7 +1,3 @@
-"""
-用户权限管理序列化器
-基于 Django auth 的 User, Group, Permission 模型
-"""
 from django.contrib.auth.models import User, Group, Permission
 from rest_framework import serializers
 
