@@ -1,27 +1,18 @@
 # views.py
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User, Permission
+from django.contrib.auth.models import User, Permission, Group
 from django.contrib.contenttypes.models import ContentType
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import BasePermission
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.decorators import api_view
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.authorization.filters import PermissionFilter, UserFilter
 from apps.authorization.models import UserProfile
 from apps.authorization.serializers import ChangePasswordSerializer, PermissionSerializer
 from utils.custom_response import Resp
-from utils.decorators import skip_authentication, skip_permission
+from utils.decorators import check_permission, skip_authentication, skip_permission
 
 
-# ==================== 自定义权限类 ====================
-
-
-class IsAdminUser(BasePermission):
-    """要求用户是管理员（staff 或 superuser）"""
-
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+# ==================== 工具函数 ====================
 
 
 def _user_to_dict(user, include_permissions=False):
@@ -46,7 +37,9 @@ def _user_to_dict(user, include_permissions=False):
         "groups": [{"id": g.id, "name": g.name} for g in user.groups.all()],
     }
     if include_permissions:
-        data["permissions"] = [{"id": p.id, "name": p.name, "codename": p.codename} for p in user.user_permissions.all()]
+        data["permissions"] = [
+            {"id": p.id, "name": p.name, "codename": p.codename} for p in user.user_permissions.all()
+        ]
     return data
 
 
@@ -107,6 +100,7 @@ def refresh_token(request):
 
 
 @api_view(["POST"])
+@check_permission("auth.view_user")
 def user_logout(request):
     """
     用户登出 - JWT 无状态，客户端删除 Token 即可
@@ -130,6 +124,7 @@ def user_logout(request):
 
 
 @api_view(["POST"])
+@check_permission("auth.view_user")
 def get_current_user(request):
     """
     获取当前用户信息
@@ -163,7 +158,7 @@ def get_current_user(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.view_user")
 def get_user_list(request):
     """
     获取用户列表（使用 UserFilter）
@@ -173,7 +168,9 @@ def get_user_list(request):
     data = request.data
     # 只把 Filter 支持的字段从 body 里传给 UserFilter，空值由 Filter 内部忽略
     filter_params = {k: data[k] for k in UserFilter.base_filters if k in data}
-    queryset = UserFilter(data=filter_params, queryset=User.objects.select_related("profile")).qs.order_by("-date_joined")
+    queryset = UserFilter(data=filter_params, queryset=User.objects.select_related("profile")).qs.order_by(
+        "-date_joined"
+    )
 
     # 分页
     page = data.get("page", 1)
@@ -190,7 +187,7 @@ def get_user_list(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.view_user")
 def get_user_detail(request):
     """
     获取用户详情
@@ -210,7 +207,7 @@ def get_user_detail(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.add_user")
 def create_user(request):
     """
     创建用户
@@ -264,7 +261,7 @@ def create_user(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.change_user")
 def update_user(request):
     """
     更新用户
@@ -318,7 +315,7 @@ def update_user(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.delete_user")
 def delete_user(request):
     """
     删除用户
@@ -343,6 +340,7 @@ def delete_user(request):
 
 
 @api_view(["POST"])
+@check_permission("auth.view_user")
 def change_password(request):
     """
     当前用户修改自己的密码
@@ -354,7 +352,11 @@ def change_password(request):
     if not serializer.is_valid():
         errors = serializer.errors
         if "non_field_errors" in errors:
-            msg = errors["non_field_errors"][0] if isinstance(errors["non_field_errors"], list) else str(errors["non_field_errors"])
+            msg = (
+                errors["non_field_errors"][0]
+                if isinstance(errors["non_field_errors"], list)
+                else str(errors["non_field_errors"])
+            )
         else:
             first_key = next(iter(errors))
             first_val = errors[first_key]
@@ -371,7 +373,7 @@ def change_password(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.change_user")
 def reset_password(request):
     """
     管理员重置指定用户密码
@@ -397,7 +399,7 @@ def reset_password(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.change_user")
 def toggle_user_active(request):
     """
     切换用户启用/禁用状态
@@ -425,11 +427,25 @@ def toggle_user_active(request):
     )
 
 
+@api_view(["POST"])
+@check_permission("auth.view_user")
+def get_group_list(request):
+    """
+    获取角色（分组）列表，用于用户表单中的角色多选
+    POST /api/auth/get_group_list/
+    body: 无或空
+    返回: {"code": 0, "data": {"results": [{"id": 1, "name": "管理员"}, ...]}}
+    """
+    groups = Group.objects.all().order_by("name")
+    results = [{"id": g.id, "name": g.name} for g in groups]
+    return Resp.success(data={"results": results, "total": len(results)}, msg="获取成功")
+
+
 # ==================== 权限管理 ====================
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.view_permission")
 def get_permission_list(request):
     """
     获取权限列表（支持筛选、分页）
@@ -438,9 +454,9 @@ def get_permission_list(request):
     """
     data = request.data
     filter_params = {k: data[k] for k in PermissionFilter.base_filters if k in data}
-    queryset = PermissionFilter(data=filter_params, queryset=Permission.objects.select_related("content_type")).qs.order_by(
-        "content_type__app_label", "content_type__model", "codename"
-    )
+    queryset = PermissionFilter(
+        data=filter_params, queryset=Permission.objects.select_related("content_type")
+    ).qs.order_by("content_type__app_label", "content_type__model", "codename")
 
     page = data.get("page", 1)
     page_size = data.get("page_size", 10)
@@ -451,11 +467,13 @@ def get_permission_list(request):
     permissions = queryset[start:end]
     serializer = PermissionSerializer(permissions, many=True)
 
-    return Resp.success(data={"results": serializer.data, "total": total, "page": page, "page_size": page_size}, msg="获取成功")
+    return Resp.success(
+        data={"results": serializer.data, "total": total, "page": page, "page_size": page_size}, msg="获取成功"
+    )
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.view_permission")
 def get_permission_detail(request):
     """
     获取权限详情
@@ -476,7 +494,7 @@ def get_permission_detail(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.add_permission")
 def create_permission(request):
     """
     创建权限（自定义权限）
@@ -509,7 +527,7 @@ def create_permission(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.change_permission")
 def update_permission(request):
     """
     更新权限
@@ -531,7 +549,11 @@ def update_permission(request):
         perm.name = data["name"].strip()
     if "codename" in data and data["codename"] is not None:
         new_codename = data["codename"].strip()
-        if Permission.objects.filter(content_type=perm.content_type, codename=new_codename).exclude(pk=perm.pk).exists():
+        if (
+            Permission.objects.filter(content_type=perm.content_type, codename=new_codename)
+            .exclude(pk=perm.pk)
+            .exists()
+        ):
             return Resp.error(msg="该内容类型下 codename 已存在", code=400)
         perm.codename = new_codename
 
@@ -541,7 +563,7 @@ def update_permission(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.delete_permission")
 def delete_permission(request):
     """
     删除权限
@@ -563,7 +585,7 @@ def delete_permission(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@check_permission("auth.view_permission")
 def get_content_type_list(request):
     """
     获取内容类型列表（用于创建/筛选权限时的下拉选项）

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -8,7 +9,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
-      meta: { hideLayout: true }
+      meta: { hideLayout: true, guest: true },
     },
     {
       path: '/',
@@ -36,24 +37,19 @@ const router = createRouter({
       component: () => import('../views/DashboardView.vue'),
     },
     {
-      path: '/users',
-      name: 'users',
-      component: () => import('../views/UsersView.vue'),
+      path: '/authorization/users',
+      name: 'authorization-users',
+      component: () => import('../views/authorization/UsersView.vue'),
     },
     {
-      path: '/users/list',
-      name: 'users-list',
-      component: () => import('../views/UsersView.vue'),
+      path: '/authorization/roles',
+      name: 'authorization-roles',
+      component: () => import('../views/authorization/RolesView.vue'),
     },
     {
-      path: '/users/roles',
-      name: 'users-roles',
-      component: () => import('../views/UsersView.vue'),
-    },
-    {
-      path: '/users/permissions',
-      name: 'users-permissions',
-      component: () => import('../views/UsersView.vue'),
+      path: '/authorization/permissions',
+      name: 'authorization-permissions',
+      component: () => import('../views/authorization/PermissionsView.vue'),
     },
     {
       path: '/about',
@@ -61,6 +57,19 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue'),
     },
   ],
+})
+
+router.beforeEach(async (to, from, next) => {
+  const auth = useAuthStore()
+  await auth.initFromStorage()
+  if (to.meta.guest) {
+    if (auth.isLoggedIn && to.name === 'login') return next('/')
+    return next()
+  }
+  if (!auth.isLoggedIn && to.name !== 'login') {
+    return next({ name: 'login', query: { redirect: to.fullPath } })
+  }
+  next()
 })
 
 export default router

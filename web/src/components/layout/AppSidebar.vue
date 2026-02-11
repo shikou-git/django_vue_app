@@ -1,29 +1,40 @@
-<template v-for="item in menuItems" :key="item.key">
-  <a-sub-menu
-    v-if="item.children"
-    :key="`sub_${item.key}`"  <!-- 添加唯一前缀 -->
-  >
-    <template #icon>
-      <component :is="item.icon" />
-    </template>
-    <template #title>{{ item.title }}</template>
-    <a-menu-item v-for="child in item.children" :key="child.key">
-      {{ child.title }}
-    </a-menu-item>
-  </a-sub-menu>
+<template>
+  <div class="app-sidebar-wrap">
+    <a-menu
+      v-model:selectedKeys="selectedKeys"
+      v-model:openKeys="openKeys"
+      mode="inline"
+      theme="dark"
+      class="app-sidebar"
+      @click="handleMenuClick"
+    >
+      <template v-for="item in menuItems" :key="item?.key">
+        <a-sub-menu
+          v-if="item?.children?.length"
+          :key="`sub_${item.key}`"
+        >
+          <template #icon>
+            <component :is="item.icon" />
+          </template>
+          <template #title>{{ item.title }}</template>
+          <a-menu-item v-for="child in item.children" :key="child.key">
+            {{ child.title }}
+          </a-menu-item>
+        </a-sub-menu>
 
-  <a-menu-item
-    v-else
-    :key="`item_${item.key}`"  <!-- 添加不同前缀 -->
-  >
-    <template #icon>
-      <component :is="item.icon" />
-    </template>
-    {{ item.title }}
-  </a-menu-item>
+        <a-menu-item
+          v-else
+          :key="`item_${item.key}`"
+        >
+          <template #icon>
+            <component :is="item.icon" />
+          </template>
+          {{ item.title }}
+        </a-menu-item>
+      </template>
+    </a-menu>
+  </div>
 </template>
-
-
 
 <script setup>
 import {
@@ -128,6 +139,10 @@ const handleMenuClick = ({ key }) => {
 </script>
 
 <style scoped>
+.app-sidebar-wrap {
+  height: 100%;
+}
+
 .app-sidebar {
   height: 100%;
 }

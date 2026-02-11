@@ -29,15 +29,13 @@
         <a-dropdown>
           <div class="user-info">
             <a-avatar style="background-color: #1890ff">
-              <template #icon>
-                <UserOutlined />
-              </template>
+              {{ (auth.user && auth.user.username && auth.user.username[0]) || '?' }}
             </a-avatar>
-            <span class="username">管理员</span>
+            <span class="username">{{ (auth.user && auth.user.username) || '用户' }}</span>
             <DownOutlined style="font-size: 12px" />
           </div>
           <template #overlay>
-            <a-menu>
+            <a-menu @click="handleMenuClick">
               <a-menu-item key="profile">
                 <UserOutlined />
                 个人资料
@@ -67,17 +65,24 @@ import {
   UserOutlined,
   DownOutlined,
   SettingOutlined,
-  LogoutOutlined
+  LogoutOutlined,
 } from '@ant-design/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
 defineProps({
   collapsed: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 })
 
 defineEmits(['toggle-sidebar'])
+
+const auth = useAuthStore()
+
+const handleMenuClick = ({ key }) => {
+  if (key === 'logout') auth.logout()
+}
 </script>
 
 <style scoped>

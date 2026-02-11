@@ -1,15 +1,19 @@
 <script setup>
-import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
+const auth = useAuthStore()
+const loading = ref(false)
 
 const formState = reactive({
   username: '',
   password: '',
-  remember: true
+  remember: true,
 })
 
 const handleLogin = async () => {
@@ -17,14 +21,17 @@ const handleLogin = async () => {
     message.warning('请输入用户名和密码')
     return
   }
-  
-  // 这里可以添加实际的登录逻辑
-  message.loading({ content: '登录中...', key: 'login' })
-  
-  setTimeout(() => {
-    message.success({ content: '登录成功！', key: 'login', duration: 2 })
-    router.push('/')
-  }, 1000)
+  loading.value = true
+  try {
+    await auth.login({ username: formState.username.trim(), password: formState.password })
+    message.success('登录成功')
+    const redirect = route.query.redirect || '/'
+    router.push(redirect)
+  } catch (e) {
+    message.error(e.message || '登录失败')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -80,11 +87,12 @@ const handleLogin = async () => {
         </a-form-item>
 
         <a-form-item>
-          <a-button 
-            type="primary" 
-            html-type="submit" 
-            block 
+          <a-button
+            type="primary"
+            html-type="submit"
+            block
             size="large"
+            :loading="loading"
             style="height: 48px; font-size: 16px"
           >
             登录

@@ -18,8 +18,8 @@ urlpatterns = [
     path("change_password/", views.change_password, name="change_password"),
     path("reset_password/", views.reset_password, name="reset_password"),
     path("toggle_user_active/", views.toggle_user_active, name="toggle_user_active"),
+    path("get_group_list/", views.get_group_list, name="get_group_list"),
     # # ==================== 角色管理接口 ====================
-    # path("get_group_list/", views.get_group_list, name="get_group_list"),
     # path("get_group_detail/", views.get_group_detail, name="get_group_detail"),
     # path("create_group/", views.create_group, name="create_group"),
     # path("update_group/", views.update_group, name="update_group"),
