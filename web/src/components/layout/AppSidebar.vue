@@ -24,7 +24,7 @@
 
         <a-menu-item
           v-else
-          :key="`item_${item.key}`"
+          :key="item.key"
         >
           <template #icon>
             <component :is="item.icon" />

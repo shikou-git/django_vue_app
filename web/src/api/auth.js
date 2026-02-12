@@ -45,6 +45,11 @@ export function resetPassword(data) {
   return request.post('/reset_password/', data)
 }
 
+/** 当前用户修改自己的密码 */
+export function changePassword(data) {
+  return request.post('/change_password/', data)
+}
+
 export function toggleUserActive(data) {
   return request.post('/toggle_user_active/', data)
 }
