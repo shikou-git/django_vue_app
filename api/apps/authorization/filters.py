@@ -28,15 +28,17 @@ class UserFilter(django_filters.FilterSet):
     # 搜索字段（多字段模糊搜索）
     search = django_filters.CharFilter(method="filter_search", label="综合搜索（用户名、真实姓名）")
 
-    # 状态过滤
-    is_active = django_filters.BooleanFilter(field_name="is_active", label="是否激活")
+    # 状态过滤（支持多选：传列表时用 __in，传单值时用等值）
+    is_active = django_filters.Filter(method="filter_is_active", label="是否激活")
 
     is_staff = django_filters.BooleanFilter(field_name="is_staff", label="是否员工")
 
-    is_superuser = django_filters.BooleanFilter(field_name="is_superuser", label="是否超级用户")
+    # 用户类型过滤（支持多选）
+    is_superuser = django_filters.Filter(method="filter_is_superuser", label="是否超级用户")
 
-    # 分组过滤
+    # 分组过滤：group 单值，groups 多选
     group = django_filters.NumberFilter(field_name="groups__id", label="所属分组ID")
+    groups = django_filters.Filter(method="filter_groups", label="所属分组ID列表")
 
     # 日期范围过滤
     date_joined_start = django_filters.DateFilter(field_name="date_joined", lookup_expr="gte", label="注册开始日期")
@@ -56,6 +58,24 @@ class UserFilter(django_filters.FilterSet):
             )
         return queryset
 
+    def filter_is_active(self, queryset, name, value):
+        """前端统一传数组，空数组不筛选"""
+        if not value or not isinstance(value, list):
+            return queryset
+        return queryset.filter(is_active__in=value)
+
+    def filter_is_superuser(self, queryset, name, value):
+        """前端统一传数组，空数组不筛选"""
+        if not value or not isinstance(value, list):
+            return queryset
+        return queryset.filter(is_superuser__in=value)
+
+    def filter_groups(self, queryset, name, value):
+        """前端统一传数组，用户属于任一角色即展示"""
+        if not value or not isinstance(value, list):
+            return queryset
+        return queryset.filter(groups__id__in=value).distinct()
+
     class Meta:
         model = User
         fields = [
@@ -64,6 +84,7 @@ class UserFilter(django_filters.FilterSet):
             "is_staff",
             "is_superuser",
             "group",
+            "groups",
             "date_joined_start",
             "date_joined_end",
             "last_login_start",

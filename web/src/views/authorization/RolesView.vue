@@ -12,6 +12,6 @@
 
 <style scoped>
 .roles-view {
-  max-width: 1200px;
+  width: 100%;
 }
 </style>

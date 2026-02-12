@@ -11,6 +11,9 @@ from apps.authorization.serializers import ChangePasswordSerializer, PermissionS
 from utils.custom_decorators import check_permission, skip_authentication, skip_permission
 from utils.custom_response import Resp
 
+# 管理员重置用户密码时使用的默认密码（仅重置接口使用）
+DEFAULT_RESET_PASSWORD = "123456"
+
 
 # ==================== 工具函数 ====================
 
@@ -373,26 +376,22 @@ def change_password(request):
 @check_permission("auth.change_user")
 def reset_password(request):
     """
-    管理员重置指定用户密码
+    管理员将指定用户密码重置为默认密码
     POST /api/auth/reset-password/
-    {"user_id": 1, "new_password": "123456"}
+    {"user_id": 1}
     """
     user_id = request.data.get("user_id")
-    new_password = request.data.get("new_password")
-
     if not user_id:
         return Resp.bad_request(msg="user_id 是必填项")
-    if not new_password:
-        return Resp.bad_request(msg="new_password 是必填项")
 
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
         return Resp.not_found(msg="用户不存在")
 
-    user.set_password(new_password)
+    user.set_password(DEFAULT_RESET_PASSWORD)
     user.save()
-    return Resp.success(msg="密码已重置")
+    return Resp.success(msg="密码已重置为默认密码")
 
 
 @api_view(["POST"])

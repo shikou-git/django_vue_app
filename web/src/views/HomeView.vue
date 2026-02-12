@@ -134,7 +134,7 @@ const quickActions = ref([
 
 <style scoped>
 .home-view {
-  max-width: 1400px;
+  width: 100%;
 }
 
 :deep(.ant-statistic-title) {

@@ -85,6 +85,6 @@ const features = [
 
 <style scoped>
 .about-view {
-  max-width: 1200px;
+  width: 100%;
 }
 </style>

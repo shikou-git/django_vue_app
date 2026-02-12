@@ -59,6 +59,16 @@ onMounted(() => loadList())
 
 watch([() => pagination.current, () => pagination.pageSize], () => loadList())
 
+let searchDebounceTimer = null
+watch(searchText, () => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    pagination.current = 1
+    loadList()
+    searchDebounceTimer = null
+  }, 300)
+})
+
 const handleSearch = () => loadList()
 
 const modalVisible = ref(false)
@@ -166,17 +176,15 @@ const handleDelete = (record) => {
     </a-page-header>
 
     <a-card :bordered="false">
-      <a-space style="margin-bottom: 16px" :size="12">
-        <a-input-search
+      <div class="filter-toolbar">
+        <a-input
           v-model:value="searchText"
           placeholder="搜索权限名称、codename..."
-          enter-button
-          style="width: 260px"
+          class="filter-toolbar__search"
           allow-clear
-          @search="handleSearch"
         >
           <template #prefix><SearchOutlined /></template>
-        </a-input-search>
+        </a-input>
         <a-select
           v-model:value="contentTypeFilter"
           placeholder="内容类型"
@@ -186,8 +194,7 @@ const handleDelete = (record) => {
         >
           <a-select-option v-for="ct in contentTypes" :key="ct.id" :value="ct.id">{{ ct.name }}</a-select-option>
         </a-select>
-        <a-button type="primary" @click="handleSearch">查询</a-button>
-      </a-space>
+      </div>
 
       <a-table
         :columns="columns"
@@ -246,6 +253,19 @@ const handleDelete = (record) => {
 
 <style scoped>
 .permissions-view {
-  max-width: 1200px;
+  width: 100%;
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.filter-toolbar__search {
+  width: 260px;
 }
 </style>

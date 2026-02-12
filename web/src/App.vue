@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import AdminLayout from './layouts/AdminLayout.vue'
 
 const route = useRoute()
@@ -8,8 +9,10 @@ const showLayout = computed(() => !route.meta.hideLayout)
 </script>
 
 <template>
-  <AdminLayout v-if="showLayout" />
-  <RouterView v-else />
+  <a-config-provider :locale="zhCN">
+    <AdminLayout v-if="showLayout" />
+    <RouterView v-else />
+  </a-config-provider>
 </template>
 
 <style>
