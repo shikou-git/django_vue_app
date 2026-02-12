@@ -1,9 +1,9 @@
 <script setup>
 import { getPermissionFilterOptions, getPermissionList } from '@/api/auth'
+import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 import { SearchOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 
 // 表格 body 最大高度，超出出现垂直滚动条（预留顶部、筛选、分页等空间，保证分页可见）
 const tableScrollY = ref('calc(100vh - 380px)')
@@ -123,7 +123,7 @@ const handleTableChange = (pag, filters, sorter) => {
       <div class="filter-toolbar">
         <a-input
           v-model:value="searchText"
-          placeholder="搜索 app_label、model、codename"
+          placeholder="搜索 App、Model、Codename、Name"
           class="filter-toolbar__search"
           allow-clear
         >

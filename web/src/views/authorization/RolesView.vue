@@ -82,11 +82,11 @@ const permissionTableLoading = ref(false)
 const permissionListAll = ref([])
 const permissionSearch = ref('')
 
-// 弹窗内权限表格：列宽根据内容自适应
+// 弹窗内权限表格：给定固定列宽 + ellipsis，让内容在弹窗内自适应
 const permissionTableColumns = [
-  { title: 'App', dataIndex: 'app_label', key: 'app_label' },
-  { title: 'Model', dataIndex: 'model', key: 'model' },
-  { title: 'Codename', dataIndex: 'codename', key: 'codename' },
+  { title: 'App', dataIndex: 'app_label', key: 'app_label', width: 100, ellipsis: true },
+  { title: 'Model', dataIndex: 'model', key: 'model', width: 100, ellipsis: true },
+  { title: 'Codename', dataIndex: 'codename', key: 'codename', width: 140, ellipsis: true },
   { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
 ]
 
@@ -263,7 +263,7 @@ const handleDelete = (record) => {
       :title="isEdit ? '编辑角色' : '新建角色'"
       :confirm-loading="modalLoading"
       ok-text="保存"
-      width="420"
+      :width="680"
       @ok="handleModalOk"
     >
       <a-form layout="vertical">
@@ -319,17 +319,11 @@ const handleDelete = (record) => {
 
 .permission-table-search {
   margin-bottom: 8px;
-  width: 320px;
+  width: 100%;
 }
 
 .permission-select-table {
   margin-top: 0;
-  max-width: 100%;
-}
-.permission-select-table :deep(.ant-table-wrapper),
-.permission-select-table :deep(.ant-spin-nested-loading),
-.permission-select-table :deep(.ant-table) {
-  max-width: 100%;
 }
 .permission-select-table :deep(.ant-table) {
   font-size: 13px;
