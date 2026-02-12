@@ -4,6 +4,7 @@ import {
   deleteGroup,
   getGroupDetail,
   getGroupList,
+  getPermissionFilterOptions,
   getPermissionList,
   updateGroup,
 } from '@/api/auth'
@@ -77,33 +78,99 @@ const formState = reactive({
   permission_ids: [],
 })
 
-// 权限选择表格：与权限管理同结构，勾选即选中
+// 权限选择表格：与权限管理同结构，勾选即选中；支持排序、筛选
 const permissionTableLoading = ref(false)
 const permissionListAll = ref([])
 const permissionSearch = ref('')
+const permissionAppLabelOptions = ref([])
+const permissionModelOptions = ref([])
+const permissionTableFilters = ref({})
+const permissionTableSorter = ref(null)
 
-// 弹窗内权限表格：给定固定列宽 + ellipsis，让内容在弹窗内自适应
-const permissionTableColumns = [
-  { title: 'App', dataIndex: 'app_label', key: 'app_label', width: 100, ellipsis: true },
-  { title: 'Model', dataIndex: 'model', key: 'model', width: 100, ellipsis: true },
-  { title: 'Codename', dataIndex: 'codename', key: 'codename', width: 140, ellipsis: true },
+// 弹窗内权限表格：App Label、Model 支持排序+筛选，Codename 支持排序（与权限管理一致）
+const permissionTableColumns = computed(() => [
+  {
+    title: 'App Label',
+    dataIndex: 'app_label',
+    key: 'app_label',
+    width: 120,
+    ellipsis: true,
+    sorter: true,
+    filters: permissionAppLabelOptions.value.map((v) => ({ text: v, value: v })),
+    filteredValue: permissionTableFilters.value.app_label,
+    sortOrder:
+      permissionTableSorter.value?.columnKey === 'app_label'
+        ? permissionTableSorter.value.order
+        : undefined,
+  },
+  {
+    title: 'Model',
+    dataIndex: 'model',
+    key: 'model',
+    width: 120,
+    ellipsis: true,
+    sorter: true,
+    filters: permissionModelOptions.value.map((v) => ({ text: v, value: v })),
+    filteredValue: permissionTableFilters.value.model,
+    sortOrder:
+      permissionTableSorter.value?.columnKey === 'model'
+        ? permissionTableSorter.value.order
+        : undefined,
+  },
+  {
+    title: 'Codename',
+    dataIndex: 'codename',
+    key: 'codename',
+    width: 140,
+    ellipsis: true,
+    sorter: true,
+    sortOrder:
+      permissionTableSorter.value?.columnKey === 'codename'
+        ? permissionTableSorter.value.order
+        : undefined,
+  },
   { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
-]
+])
 
 const permissionTableData = computed(() => {
-  const list = permissionListAll.value
+  let list = permissionListAll.value
   const q = (permissionSearch.value || '').trim().toLowerCase()
-  if (!q) return list.map((r) => ({ ...r, key: r.id }))
-  return list
-    .filter(
+  if (q) {
+    list = list.filter(
       (p) =>
         (p.app_label || '').toLowerCase().includes(q) ||
         (p.model || '').toLowerCase().includes(q) ||
         (p.codename || '').toLowerCase().includes(q) ||
         (p.name || '').toLowerCase().includes(q),
     )
-    .map((r) => ({ ...r, key: r.id }))
+  }
+  const f = permissionTableFilters.value
+  if (f.app_label && Array.isArray(f.app_label) && f.app_label.length) {
+    list = list.filter((p) => f.app_label.includes(p.app_label))
+  }
+  if (f.model && Array.isArray(f.model) && f.model.length) {
+    list = list.filter((p) => f.model.includes(p.model))
+  }
+  const sorter = permissionTableSorter.value
+  if (sorter && (sorter.order === 'ascend' || sorter.order === 'descend')) {
+    const key = sorter.columnKey
+    const asc = sorter.order === 'ascend'
+    list = [...list].sort((a, b) => {
+      const va = (a[key] || '').toString()
+      const vb = (b[key] || '').toString()
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+  }
+  return list.map((r) => ({ ...r, key: r.id }))
 })
+
+const handlePermissionTableChange = (_pag, filters, sorter) => {
+  permissionTableFilters.value = filters
+  permissionTableSorter.value =
+    sorter && (sorter.order === 'ascend' || sorter.order === 'descend')
+      ? { columnKey: sorter.columnKey, order: sorter.order }
+      : null
+}
 
 const permissionRowSelection = computed(() => ({
   selectedRowKeys: formState.permission_ids,
@@ -111,6 +178,19 @@ const permissionRowSelection = computed(() => ({
     formState.permission_ids = keys
   },
 }))
+
+const loadPermissionFilterOptions = async () => {
+  try {
+    const res = await getPermissionFilterOptions()
+    const d = res.data || {}
+    permissionAppLabelOptions.value = d.app_labels || []
+    permissionModelOptions.value = d.models || []
+  } catch (e) {
+    console.error(e)
+    permissionAppLabelOptions.value = []
+    permissionModelOptions.value = []
+  }
+}
 
 const loadPermissionList = async () => {
   permissionTableLoading.value = true
@@ -131,7 +211,9 @@ const openCreate = () => {
   formState.name = ''
   formState.permission_ids = []
   permissionSearch.value = ''
-  loadPermissionList()
+  permissionTableFilters.value = {}
+  permissionTableSorter.value = null
+  Promise.all([loadPermissionFilterOptions(), loadPermissionList()])
   modalVisible.value = true
 }
 
@@ -141,6 +223,7 @@ const openEdit = async (record) => {
   try {
     const [detailRes, _] = await Promise.all([
       getGroupDetail({ group_id: record.id }),
+      loadPermissionFilterOptions(),
       loadPermissionList(),
     ])
     const g = detailRes.data || {}
@@ -148,6 +231,8 @@ const openEdit = async (record) => {
     formState.name = g.name || ''
     formState.permission_ids = g.permission_ids || []
     permissionSearch.value = ''
+    permissionTableFilters.value = {}
+    permissionTableSorter.value = null
     modalVisible.value = true
   } catch (e) {
     message.error(e.message || '获取角色详情失败')
@@ -288,6 +373,7 @@ const handleDelete = (record) => {
             :pagination="false"
             size="small"
             class="permission-select-table"
+            @change="handlePermissionTableChange"
           />
         </a-form-item>
       </a-form>
@@ -310,7 +396,7 @@ const handleDelete = (record) => {
 }
 
 .filter-toolbar__search {
-  width: 200px;
+  width: 160px;
 }
 
 .role-name-input {
@@ -319,7 +405,7 @@ const handleDelete = (record) => {
 
 .permission-table-search {
   margin-bottom: 8px;
-  width: 100%;
+  width: 320px;
 }
 
 .permission-select-table {

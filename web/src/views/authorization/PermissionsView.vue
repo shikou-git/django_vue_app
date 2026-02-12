@@ -164,6 +164,6 @@ const handleTableChange = (pag, filters, sorter) => {
 }
 
 .filter-toolbar__search {
-  width: 300px;
+  width: 320px;
 }
 </style>

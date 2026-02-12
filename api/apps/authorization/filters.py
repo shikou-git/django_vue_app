@@ -13,7 +13,7 @@ class PermissionFilter(django_filters.FilterSet):
         "codename": "codename",
     }
 
-    search = django_filters.CharFilter(method="filter_search", label="综合搜索（app_label、model、codename）")
+    search = django_filters.CharFilter(method="filter_search", label="综合搜索（app_label、model、codename、name）")
     content_type = django_filters.NumberFilter(field_name="content_type_id", label="内容类型ID")
     app_label = django_filters.Filter(method="filter_app_labels", label="App Label 多选")
     model = django_filters.Filter(method="filter_models", label="Model 多选")
@@ -24,6 +24,7 @@ class PermissionFilter(django_filters.FilterSet):
                 Q(codename__icontains=value)
                 | Q(content_type__app_label__icontains=value)
                 | Q(content_type__model__icontains=value)
+                | Q(name__icontains=value)
             )
         return queryset
 
