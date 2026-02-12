@@ -40,21 +40,29 @@ const router = createRouter({
       path: '/authorization/users',
       name: 'authorization-users',
       component: () => import('../views/authorization/UsersView.vue'),
+      meta: { permission: 'auth.view_user' },
     },
     {
       path: '/authorization/roles',
       name: 'authorization-roles',
       component: () => import('../views/authorization/RolesView.vue'),
+      meta: { permission: 'auth.view_group' },
     },
     {
       path: '/authorization/permissions',
       name: 'authorization-permissions',
       component: () => import('../views/authorization/PermissionsView.vue'),
+      meta: { permission: 'auth.view_permission' },
     },
     {
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),
+    },
+    {
+      path: '/403',
+      name: 'forbidden',
+      component: () => import('../views/ForbiddenView.vue'),
     },
   ],
 })
@@ -68,6 +76,16 @@ router.beforeEach(async (to, from, next) => {
   }
   if (!auth.isLoggedIn && to.name !== 'login') {
     return next({ name: 'login', query: { redirect: to.fullPath } })
+  }
+  // 需要权限的路由：校验当前用户是否具备 meta.permission
+  const requiredPermission = to.meta.permission
+  if (requiredPermission) {
+    const user = auth.user
+    const isSuper = user?.is_superuser === true
+    const perms = user?.permissions || []
+    if (!isSuper && !perms.includes(requiredPermission)) {
+      return next({ name: 'forbidden' })
+    }
   }
   next()
 })
