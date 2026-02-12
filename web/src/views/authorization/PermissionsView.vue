@@ -5,6 +5,9 @@ import { message } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 
+// 表格 body 最大高度，超出出现垂直滚动条（预留顶部、筛选、分页等空间，保证分页可见）
+const tableScrollY = ref('calc(100vh - 380px)')
+
 const loading = ref(false)
 const searchText = ref('')
 const tableFilters = ref({})
@@ -139,7 +142,7 @@ const handleTableChange = (pag, filters, sorter) => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 条`,
         }"
-        :scroll="{ x: 600 }"
+        :scroll="{ x: 600, y: tableScrollY }"
         @change="handleTableChange"
       />
     </a-card>

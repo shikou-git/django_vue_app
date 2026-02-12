@@ -18,14 +18,15 @@ urlpatterns = [
     path("change_password/", views.change_password, name="change_password"),
     path("reset_password/", views.reset_password, name="reset_password"),
     path("toggle_user_active/", views.toggle_user_active, name="toggle_user_active"),
+    # ==================== 角色管理接口 ====================
     path("get_group_list/", views.get_group_list, name="get_group_list"),
-    # # ==================== 角色管理接口 ====================
-    # path("get_group_detail/", views.get_group_detail, name="get_group_detail"),
-    # path("create_group/", views.create_group, name="create_group"),
-    # path("update_group/", views.update_group, name="update_group"),
-    # path("delete_group/", views.delete_group, name="delete_group"),
-    # path("add_user_to_group/", views.add_user_to_group, name="add_user_to_group"),
-    # path("remove_user_from_group/", views.remove_user_from_group, name="remove_user_from_group"),
+    path("get_group_detail/", views.get_group_detail, name="get_group_detail"),
+    path("create_group/", views.create_group, name="create_group"),
+    path("update_group/", views.update_group, name="update_group"),
+    path("delete_group/", views.delete_group, name="delete_group"),
+    # ==================== 用户角色管理接口 ====================
+    path("add_user_to_group/", views.add_user_to_group, name="add_user_to_group"),
+    path("remove_user_from_group/", views.remove_user_from_group, name="remove_user_from_group"),
     # # ==================== 权限管理接口 ====================
     path("get_permission_list/", views.get_permission_list, name="get_permission_list"),
     path("get_permission_detail/", views.get_permission_detail, name="get_permission_detail"),

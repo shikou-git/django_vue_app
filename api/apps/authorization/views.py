@@ -8,12 +8,10 @@ from rest_framework.decorators import api_view
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.authorization.filters import PermissionFilter, UserFilter
-from apps.authorization.serializers import ChangePasswordSerializer, PermissionSerializer
+from apps.authorization.serializers import ChangePasswordSerializer, GroupSerializer, PermissionSerializer
+from utils.const import DEFAULT_PASSWORD
 from utils.custom_decorators import check_permission, skip_authentication, skip_permission
 from utils.custom_response import Resp
-
-# 默认密码
-DEFAULT_PASSWORD = "123456"
 
 
 # ==================== 工具函数 ====================
@@ -157,9 +155,7 @@ def get_user_list(request):
     # 排序：支持 order_by 列表，如 ["username"]、["-date_joined"]；默认按工号升序
     order_by = data.get("order_by")
     if order_by and isinstance(order_by, list) and len(order_by) > 0:
-        need_groups_annotate = any(
-            isinstance(k, str) and k.lstrip("-") == "groups" for k in order_by
-        )
+        need_groups_annotate = any(isinstance(k, str) and k.lstrip("-") == "groups" for k in order_by)
         if need_groups_annotate:
             queryset = queryset.annotate(_group_sort=Min("groups__name")).distinct()
         order_fields = []
@@ -375,12 +371,157 @@ def toggle_user_active(request):
     )
 
 
+# ==================== 角色管理 ====================
+
+
 @api_view(["POST"])
-@check_permission("auth.view_user")
+@check_permission("auth.view_group")
 def get_group_list(request):
-    groups = Group.objects.all().order_by("name")
-    results = [{"id": g.id, "name": g.name} for g in groups]
+    """
+    角色列表。不传 page/page_size 时返回全部（供下拉等用）；传则分页并支持 search 按名称搜索。
+    """
+    data = request.data or {}
+    queryset = Group.objects.all().order_by("name")
+
+    search = (data.get("search") or "").strip()
+    if search:
+        queryset = queryset.filter(name__icontains=search)
+
+    page = data.get("page")
+    page_size = data.get("page_size")
+    if page is not None and page_size is not None:
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 100))
+        start = (page - 1) * page_size
+        end = start + page_size
+        total = queryset.count()
+        groups = queryset[start:end]
+        results = [{"id": g.id, "name": g.name, "user_count": g.user_set.count(), "permission_count": g.permissions.count()} for g in groups]
+        return Resp.success(data={"results": results, "total": total, "page": page, "page_size": page_size}, msg="获取成功")
+
+    results = [{"id": g.id, "name": g.name} for g in queryset]
     return Resp.success(data={"results": results, "total": len(results)}, msg="获取成功")
+
+
+@api_view(["POST"])
+@check_permission("auth.view_group")
+def get_group_detail(request):
+    group_id = request.data.get("group_id")
+    if not group_id:
+        return Resp.bad_request(msg="group_id 是必填项")
+    try:
+        group = Group.objects.prefetch_related("permissions").get(id=group_id)
+        ser = GroupSerializer(group)
+        data = dict(ser.data)
+        data["permission_ids"] = list(group.permissions.values_list("id", flat=True))
+        return Resp.success(data=data, msg="获取成功")
+    except Group.DoesNotExist:
+        return Resp.not_found(msg="角色不存在")
+
+
+@api_view(["POST"])
+@check_permission("auth.add_group")
+def create_group(request):
+    data = request.data
+    name = (data.get("name") or "").strip()
+    if not name:
+        return Resp.bad_request(msg="角色名称不能为空")
+    if Group.objects.filter(name=name).exists():
+        return Resp.error(msg="角色名称已存在", code=400)
+    group = Group.objects.create(name=name)
+    permission_ids = data.get("permission_ids")
+    if permission_ids is not None and isinstance(permission_ids, list) and len(permission_ids) > 0:
+        group.permissions.set(permission_ids)
+    return Resp.success(data={"group_id": group.id}, msg="创建成功")
+
+
+@api_view(["POST"])
+@check_permission("auth.change_group")
+def update_group(request):
+    data = request.data
+    group_id = data.get("group_id")
+    if not group_id:
+        return Resp.bad_request(msg="group_id 是必填项")
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Resp.not_found(msg="角色不存在")
+    name = data.get("name")
+    if name is not None:
+        name = (name or "").strip()
+        if not name:
+            return Resp.bad_request(msg="角色名称不能为空")
+        if Group.objects.filter(name=name).exclude(id=group.id).exists():
+            return Resp.error(msg="角色名称已存在", code=400)
+        group.name = name
+        group.save()
+    permission_ids = data.get("permission_ids")
+    if permission_ids is not None:
+        group.permissions.set(permission_ids if isinstance(permission_ids, list) else [])
+    return Resp.success(data={"id": group.id, "name": group.name}, msg="更新成功")
+
+
+@api_view(["POST"])
+@check_permission("auth.delete_group")
+def delete_group(request):
+    group_id = request.data.get("group_id")
+    if not group_id:
+        return Resp.bad_request(msg="group_id 是必填项")
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Resp.not_found(msg="角色不存在")
+    group.delete()
+    return Resp.success(msg="删除成功")
+
+
+# ==================== 用户角色管理 ====================
+
+
+@api_view(["POST"])
+@check_permission("auth.change_user")
+def add_user_to_group(request):
+    """将用户加入角色。POST: user_id, group_id"""
+    user_id = request.data.get("user_id")
+    group_id = request.data.get("group_id")
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
+    if not group_id:
+        return Resp.bad_request(msg="group_id 是必填项")
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Resp.not_found(msg="角色不存在")
+    if user.groups.filter(id=group_id).exists():
+        return Resp.success(msg="用户已在该角色中", data={"user_id": user.id, "group_id": group.id})
+    user.groups.add(group)
+    return Resp.success(msg="已加入角色", data={"user_id": user.id, "group_id": group.id})
+
+
+@api_view(["POST"])
+@check_permission("auth.change_user")
+def remove_user_from_group(request):
+    """将用户移出角色。POST: user_id, group_id"""
+    user_id = request.data.get("user_id")
+    group_id = request.data.get("group_id")
+    if not user_id:
+        return Resp.bad_request(msg="user_id 是必填项")
+    if not group_id:
+        return Resp.bad_request(msg="group_id 是必填项")
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Resp.not_found(msg="用户不存在")
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Resp.not_found(msg="角色不存在")
+    user.groups.remove(group)
+    return Resp.success(msg="已移出角色", data={"user_id": user.id, "group_id": group.id})
 
 
 # ==================== 权限管理 ====================

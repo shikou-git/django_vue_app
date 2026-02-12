@@ -49,9 +49,34 @@ export function toggleUserActive(data) {
   return request.post('/toggle_user_active/', data)
 }
 
-// ---------- 角色（用于用户表单） ----------
+// ---------- 角色管理 ----------
 export function getGroupList(data = {}) {
   return request.post('/get_group_list/', data)
+}
+
+export function getGroupDetail(data) {
+  return request.post('/get_group_detail/', data)
+}
+
+export function createGroup(data) {
+  return request.post('/create_group/', data)
+}
+
+export function updateGroup(data) {
+  return request.post('/update_group/', data)
+}
+
+export function deleteGroup(data) {
+  return request.post('/delete_group/', data)
+}
+
+// ---------- 用户角色管理（单独加入/移出角色） ----------
+export function addUserToGroup(data) {
+  return request.post('/add_user_to_group/', data)
+}
+
+export function removeUserFromGroup(data) {
+  return request.post('/remove_user_from_group/', data)
 }
 
 // ---------- 权限管理 ----------
