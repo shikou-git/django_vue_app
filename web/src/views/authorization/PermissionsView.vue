@@ -1,53 +1,80 @@
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons-vue'
-import { message, Modal } from 'ant-design-vue'
-import {
-  getPermissionList,
-  getPermissionDetail,
-  createPermission,
-  updatePermission,
-  deletePermission,
-} from '@/api/auth'
+import { getPermissionFilterOptions, getPermissionList } from '@/api/auth'
+import { SearchOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 
 const loading = ref(false)
 const searchText = ref('')
-const contentTypeFilter = ref(undefined)
+const tableFilters = ref({})
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 const dataSource = ref([])
-const contentTypes = ref([])
+const appLabelOptions = ref([])
+const modelOptions = ref([])
+// 排序：{ columnKey: 'app_label', order: 'ascend' | 'descend' } 或 undefined
+const sorterState = ref(null)
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-  { title: '权限名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: 'Codename', dataIndex: 'codename', key: 'codename', width: 180 },
-  { title: '内容类型', dataIndex: 'content_type_name', key: 'content_type_name', width: 120 },
-  { title: 'Content Type ID', dataIndex: 'content_type', key: 'content_type', width: 120 },
-  { title: '操作', key: 'action', width: 140, fixed: 'right' },
-]
+const columns = computed(() => [
+  {
+    title: 'App Label',
+    dataIndex: 'app_label',
+    key: 'app_label',
+    width: 140,
+    sorter: true,
+    filters: appLabelOptions.value.map((v) => ({ text: v, value: v })),
+    filteredValue: tableFilters.value.app_label,
+  },
+  {
+    title: 'Model',
+    dataIndex: 'model',
+    key: 'model',
+    width: 140,
+    sorter: true,
+    filters: modelOptions.value.map((v) => ({ text: v, value: v })),
+    filteredValue: tableFilters.value.model,
+  },
+  { title: 'Codename', dataIndex: 'codename', key: 'codename', width: 180, sorter: true },
+  { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
+])
+
+const buildOrderBy = () => {
+  if (!sorterState.value || !sorterState.value.columnKey || !sorterState.value.order)
+    return undefined
+  const key = sorterState.value.columnKey
+  const dir = sorterState.value.order === 'ascend' ? key : `-${key}`
+  return [dir]
+}
+
+const toArr = (v) => (Array.isArray(v) && v.length ? v : undefined)
+
+const loadFilterOptions = async () => {
+  try {
+    const res = await getPermissionFilterOptions()
+    const d = res.data || {}
+    appLabelOptions.value = d.app_labels || []
+    modelOptions.value = d.models || []
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 const loadList = async () => {
   loading.value = true
   try {
+    const f = tableFilters.value
     const params = {
       page: pagination.current,
       page_size: pagination.pageSize,
       search: searchText.value || undefined,
-      content_type: contentTypeFilter.value,
+      app_label: toArr(f.app_label),
+      model: toArr(f.model),
+      order_by: buildOrderBy(),
     }
     const res = await getPermissionList(params)
     const d = res.data || {}
     dataSource.value = (d.results || []).map((r) => ({ ...r, key: r.id }))
     pagination.total = d.total ?? 0
-    if (contentTypes.value.length === 0 && dataSource.value.length > 0) {
-      const set = new Map()
-      dataSource.value.forEach((p) => {
-        if (p.content_type != null && p.content_type_name) {
-          set.set(p.content_type, { id: p.content_type, name: p.content_type_name })
-        }
-      })
-      contentTypes.value = Array.from(set.values())
-    }
   } catch (e) {
     message.error(e.message || '加载权限列表失败')
   } finally {
@@ -55,7 +82,10 @@ const loadList = async () => {
   }
 }
 
-onMounted(() => loadList())
+onMounted(() => {
+  loadFilterOptions()
+  loadList()
+})
 
 watch([() => pagination.current, () => pagination.pageSize], () => loadList())
 
@@ -66,134 +96,36 @@ watch(searchText, () => {
     pagination.current = 1
     loadList()
     searchDebounceTimer = null
-  }, 300)
+  }, SEARCH_DEBOUNCE_MS)
 })
 
-const handleSearch = () => loadList()
-
-const modalVisible = ref(false)
-const modalLoading = ref(false)
-const isEdit = ref(false)
-const formState = reactive({
-  permission_id: null,
-  name: '',
-  codename: '',
-  content_type_id: undefined,
-})
-
-const openCreate = () => {
-  isEdit.value = false
-  formState.permission_id = null
-  formState.name = ''
-  formState.codename = ''
-  formState.content_type_id = undefined
-  modalVisible.value = true
-}
-
-const openEdit = async (record) => {
-  isEdit.value = true
-  try {
-    const res = await getPermissionDetail({ permission_id: record.id })
-    const p = res.data || {}
-    formState.permission_id = p.id
-    formState.name = p.name || ''
-    formState.codename = p.codename || ''
-    formState.content_type_id = p.content_type
-    modalVisible.value = true
-  } catch (e) {
-    message.error(e.message || '获取权限详情失败')
-  }
-}
-
-const handleModalOk = async () => {
-  if (!formState.name.trim()) {
-    message.warning('请输入权限名称')
-    return
-  }
-  if (!formState.codename.trim()) {
-    message.warning('请输入 codename')
-    return
-  }
-  if (!isEdit.value && (formState.content_type_id == null || formState.content_type_id === '')) {
-    message.warning('请输入内容类型 ID（创建自定义权限需在 Django 后台查看 ContentType ID）')
-    return
-  }
-  modalLoading.value = true
-  try {
-    if (isEdit.value) {
-      await updatePermission({
-        permission_id: formState.permission_id,
-        name: formState.name.trim(),
-        codename: formState.codename.trim(),
-      })
-      message.success('更新成功')
-    } else {
-      await createPermission({
-        content_type_id: formState.content_type_id,
-        name: formState.name.trim(),
-        codename: formState.codename.trim(),
-      })
-      message.success('创建成功')
-    }
-    modalVisible.value = false
-    loadList()
-  } catch (e) {
-    message.error(e.message || '保存失败')
-  } finally {
-    modalLoading.value = false
-  }
-}
-
-const handleDelete = (record) => {
-  Modal.confirm({
-    title: '确认删除',
-    content: `确定要删除权限「${record.name}」吗？`,
-    okText: '删除',
-    okType: 'danger',
-    cancelText: '取消',
-    async onOk() {
-      try {
-        await deletePermission({ permission_id: record.id })
-        message.success('已删除')
-        loadList()
-      } catch (e) {
-        message.error(e.message || '删除失败')
-      }
-    },
-  })
+const handleTableChange = (pag, filters, sorter) => {
+  const filtersChanged = JSON.stringify(tableFilters.value) !== JSON.stringify(filters)
+  tableFilters.value = filters
+  pagination.pageSize = pag.pageSize
+  pagination.current = filtersChanged ? 1 : pag.current
+  sorterState.value =
+    sorter && (sorter.order === 'ascend' || sorter.order === 'descend')
+      ? { columnKey: sorter.columnKey, order: sorter.order }
+      : null
+  loadList()
 }
 </script>
 
 <template>
   <div class="permissions-view">
-    <a-page-header title="权限管理" sub-title="查看与维护系统权限" style="padding: 0 0 24px 0">
-      <template #extra>
-        <a-button type="primary" @click="openCreate">
-          <template #icon><PlusOutlined /></template>
-          新建权限
-        </a-button>
-      </template>
-    </a-page-header>
+    <a-page-header title="权限管理" sub-title="" style="padding: 0 0 24px 0" />
 
     <a-card :bordered="false">
       <div class="filter-toolbar">
         <a-input
           v-model:value="searchText"
-          placeholder="搜索权限名称、codename..."
+          placeholder="搜索 app_label、model、codename"
           class="filter-toolbar__search"
           allow-clear
         >
           <template #prefix><SearchOutlined /></template>
         </a-input>
-        <a-select
-          v-model:value="contentTypeFilter"
-          placeholder="内容类型"
-          style="width: 140px"
-          allow-clear
-          @change="handleSearch"
-        >
-          <a-select-option v-for="ct in contentTypes" :key="ct.id" :value="ct.id">{{ ct.name }}</a-select-option>
-        </a-select>
       </div>
 
       <a-table
@@ -207,47 +139,10 @@ const handleDelete = (record) => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 条`,
         }"
-        :scroll="{ x: 900 }"
-        @change="(pag) => { pagination.current = pag.current; pagination.pageSize = pag.pageSize }"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-space>
-              <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-              <a-button type="link" danger size="small" @click="handleDelete(record)">删除</a-button>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
+        :scroll="{ x: 600 }"
+        @change="handleTableChange"
+      />
     </a-card>
-
-    <a-modal
-      v-model:open="modalVisible"
-      :title="isEdit ? '编辑权限' : '新建权限'"
-      :confirm-loading="modalLoading"
-      ok-text="保存"
-      @ok="handleModalOk"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="权限名称" required>
-          <a-input v-model:value="formState.name" placeholder="如：导出用户" />
-        </a-form-item>
-        <a-form-item label="Codename" required>
-          <a-input v-model:value="formState.codename" placeholder="如：export_user" :disabled="isEdit" />
-        </a-form-item>
-        <a-form-item v-if="!isEdit" label="内容类型 ID" required>
-          <a-input-number
-            v-model:value="formState.content_type_id"
-            placeholder="如 4 表示 User 模型"
-            style="width: 100%"
-            :min="1"
-          />
-          <div style="color: #999; font-size: 12px; margin-top: 4px">
-            可在权限列表中查看已有权限的 content_type，或到 Django 后台查看 Content type。
-          </div>
-        </a-form-item>
-      </a-form>
-    </a-modal>
   </div>
 </template>
 
@@ -266,6 +161,6 @@ const handleDelete = (record) => {
 }
 
 .filter-toolbar__search {
-  width: 260px;
+  width: 300px;
 }
 </style>

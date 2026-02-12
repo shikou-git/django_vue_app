@@ -12,7 +12,7 @@ import {
 import { SearchOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { DEFAULT_PASSWORD } from '@/utils/const'
+import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 
 const loading = ref(false)
 const searchText = ref('')
@@ -20,17 +20,43 @@ const tableFilters = ref({})
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 const dataSource = ref([])
 const groupOptions = ref([])
+// null = 使用后端默认排序（工号升序），不传 order_by；否则 { columnKey, order }
+const sorterState = ref(null)
+
+const buildOrderBy = () => {
+  if (!sorterState.value?.columnKey || !sorterState.value?.order) return undefined
+  const key = sorterState.value.columnKey
+  const dir = sorterState.value.order === 'ascend' ? key : `-${key}`
+  return [dir]
+}
 
 const columns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
-  { title: '工号', dataIndex: 'username', key: 'username', width: 120 },
-  { title: '真实姓名', dataIndex: 'real_name', key: 'real_name', width: 120, ellipsis: true },
+  {
+    title: '工号',
+    dataIndex: 'username',
+    key: 'username',
+    width: 120,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'username' ? sorterState.value.order : undefined,
+  },
+  {
+    title: '真实姓名',
+    dataIndex: 'real_name',
+    key: 'real_name',
+    width: 120,
+    ellipsis: true,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'real_name' ? sorterState.value.order : undefined,
+  },
   {
     title: '角色',
     dataIndex: 'groups',
     key: 'groups',
     width: 150,
     ellipsis: true,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'groups' ? sorterState.value.order : undefined,
     filters: groupOptions.value.map((g) => ({ text: g.name, value: g.id })),
     filteredValue: tableFilters.value.groups,
   },
@@ -39,6 +65,8 @@ const columns = computed(() => [
     dataIndex: 'is_active',
     key: 'is_active',
     width: 90,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'is_active' ? sorterState.value.order : undefined,
     filters: [
       { text: '启用', value: true },
       { text: '禁用', value: false },
@@ -50,14 +78,31 @@ const columns = computed(() => [
     dataIndex: 'is_superuser',
     key: 'is_superuser',
     width: 130,
+    sorter: true,
+    sortOrder:
+      sorterState.value?.columnKey === 'is_superuser' ? sorterState.value.order : undefined,
     filters: [
       { text: '超级管理员', value: true },
       { text: '普通用户', value: false },
     ],
     filteredValue: tableFilters.value.is_superuser,
   },
-  { title: '注册时间', dataIndex: 'date_joined', key: 'date_joined', width: 170 },
-  { title: '最后登录时间', dataIndex: 'last_login', key: 'last_login', width: 170 },
+  {
+    title: '注册时间',
+    dataIndex: 'date_joined',
+    key: 'date_joined',
+    width: 170,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'date_joined' ? sorterState.value.order : undefined,
+  },
+  {
+    title: '最后登录时间',
+    dataIndex: 'last_login',
+    key: 'last_login',
+    width: 170,
+    sorter: true,
+    sortOrder: sorterState.value?.columnKey === 'last_login' ? sorterState.value.order : undefined,
+  },
   { title: '操作', key: 'action', width: 260, fixed: 'right' },
 ])
 
@@ -75,6 +120,7 @@ const loadList = async () => {
   try {
     const f = tableFilters.value
     const toArr = (v) => (Array.isArray(v) && v.length ? v : undefined)
+    const orderBy = buildOrderBy()
     const params = {
       page: pagination.current,
       page_size: pagination.pageSize,
@@ -82,6 +128,7 @@ const loadList = async () => {
       is_active: toArr(f.is_active),
       is_superuser: toArr(f.is_superuser),
       groups: toArr(f.groups),
+      ...(orderBy != null && { order_by: orderBy }),
     }
     const res = await getUserList(params)
     const d = res.data || {}
@@ -99,7 +146,7 @@ onMounted(() => {
   loadList()
 })
 
-// 搜索框实时搜索（防抖 300ms）
+// 搜索框实时搜索（防抖）
 let searchDebounceTimer = null
 watch(searchText, () => {
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
@@ -107,14 +154,18 @@ watch(searchText, () => {
     pagination.current = 1
     loadList()
     searchDebounceTimer = null
-  }, 300)
+  }, SEARCH_DEBOUNCE_MS)
 })
 
-const handleTableChange = (pag, filters) => {
+const handleTableChange = (pag, filters, sorter) => {
   const filtersChanged = JSON.stringify(tableFilters.value) !== JSON.stringify(filters)
   tableFilters.value = filters
   pagination.pageSize = pag.pageSize
   pagination.current = filtersChanged ? 1 : pag.current
+  sorterState.value =
+    sorter?.columnKey && (sorter.order === 'ascend' || sorter.order === 'descend')
+      ? { columnKey: sorter.columnKey, order: sorter.order }
+      : null
   loadList()
 }
 
@@ -182,7 +233,7 @@ const handleModalOk = async () => {
     } else {
       await createUser({
         username: formState.username.trim(),
-        password: formState.password || DEFAULT_PASSWORD,
+        password: formState.password || '',
         real_name: formState.real_name,
         is_active: formState.is_active,
         group_ids: formState.group_ids,
@@ -250,7 +301,7 @@ const handleToggleActive = async (record) => {
 
 <template>
   <div class="users-view">
-    <a-page-header title="用户管理" sub-title="管理系统用户与角色" style="padding: 0 0 24px 0">
+    <a-page-header title="用户管理" sub-title="" style="padding: 0 0 24px 0">
       <template #extra>
         <a-button type="primary" @click="openCreate">
           <template #icon><UserAddOutlined /></template>
@@ -358,6 +409,12 @@ const handleToggleActive = async (record) => {
   width: 100%;
 }
 
+/* 表头列统一加粗（含带筛选的列，其标题可能被组件设为 normal） */
+.users-view :deep(.ant-table-thead th),
+.users-view :deep(.ant-table-thead th .ant-table-column-title) {
+  font-weight: 600;
+}
+
 .filter-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -368,6 +425,6 @@ const handleToggleActive = async (record) => {
 }
 
 .filter-toolbar__search {
-  width: 260px;
+  width: 200px;
 }
 </style>

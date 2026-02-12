@@ -63,14 +63,6 @@ export function getPermissionDetail(data) {
   return request.post('/get_permission_detail/', data)
 }
 
-export function createPermission(data) {
-  return request.post('/create_permission/', data)
-}
-
-export function updatePermission(data) {
-  return request.post('/update_permission/', data)
-}
-
-export function deletePermission(data) {
-  return request.post('/delete_permission/', data)
+export function getPermissionFilterOptions(data = {}) {
+  return request.post('/get_permission_filter_options/', data)
 }

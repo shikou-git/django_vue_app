@@ -1,2 +1,2 @@
-/** 添加用户时未填密码、或管理员重置密码时使用的默认密码 */
-export const DEFAULT_PASSWORD = '123456'
+/** 搜索框防抖延迟（毫秒） */
+export const SEARCH_DEBOUNCE_MS = 100

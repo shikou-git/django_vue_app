@@ -3,27 +3,59 @@ import django_filters
 from django.contrib.auth.models import User, Permission
 from django.db.models import Q
 
-
 class PermissionFilter(django_filters.FilterSet):
     """权限过滤器"""
 
-    search = django_filters.CharFilter(method="filter_search", label="综合搜索（权限名称、codename）")
+    # 可排序字段到 ORM 字段的映射（app_label、model、codename 可排序，name 不可排序）
+    ORDER_MAP = {
+        "app_label": "content_type__app_label",
+        "model": "content_type__model",
+        "codename": "codename",
+    }
+
+    search = django_filters.CharFilter(method="filter_search", label="综合搜索（app_label、model、codename）")
     content_type = django_filters.NumberFilter(field_name="content_type_id", label="内容类型ID")
+    app_label = django_filters.Filter(method="filter_app_labels", label="App Label 多选")
+    model = django_filters.Filter(method="filter_models", label="Model 多选")
 
     def filter_search(self, queryset, name, value):
         if value:
             return queryset.filter(
-                Q(name__icontains=value) | Q(codename__icontains=value)
+                Q(codename__icontains=value)
+                | Q(content_type__app_label__icontains=value)
+                | Q(content_type__model__icontains=value)
             )
         return queryset
 
+    def filter_app_labels(self, queryset, name, value):
+        """前端传 app_label 列表，满足任一即展示"""
+        if not value or not isinstance(value, list):
+            return queryset
+        return queryset.filter(content_type__app_label__in=value)
+
+    def filter_models(self, queryset, name, value):
+        """前端传 model 列表，满足任一即展示"""
+        if not value or not isinstance(value, list):
+            return queryset
+        return queryset.filter(content_type__model__in=value)
+
     class Meta:
         model = Permission
-        fields = ["search", "content_type"]
+        fields = ["search", "content_type", "app_label", "model"]
 
 
 class UserFilter(django_filters.FilterSet):
     """用户过滤器"""
+
+    # 可排序字段到 ORM 字段的映射（角色 groups 在 view 中通过 annotate 处理）
+    ORDER_MAP = {
+        "username": "username",
+        "real_name": "profile__real_name",
+        "is_active": "is_active",
+        "is_superuser": "is_superuser",
+        "date_joined": "date_joined",
+        "last_login": "last_login",
+    }
 
     # 搜索字段（多字段模糊搜索）
     search = django_filters.CharFilter(method="filter_search", label="综合搜索（用户名、真实姓名）")

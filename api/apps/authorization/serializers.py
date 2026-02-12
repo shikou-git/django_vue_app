@@ -3,13 +3,14 @@ from rest_framework import serializers
 
 
 class PermissionSerializer(serializers.ModelSerializer):
-    """权限序列化器"""
+    """权限序列化器（只读，用于列表：app_label、model、codename、name）"""
 
-    content_type_name = serializers.CharField(source="content_type.model", read_only=True)
+    app_label = serializers.CharField(source="content_type.app_label", read_only=True)
+    model = serializers.CharField(source="content_type.model", read_only=True)
 
     class Meta:
         model = Permission
-        fields = ["id", "name", "codename", "content_type", "content_type_name"]
+        fields = ["id", "app_label", "model", "codename", "name"]
         read_only_fields = ["id"]
 
 

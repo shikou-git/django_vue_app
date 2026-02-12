@@ -29,10 +29,7 @@ urlpatterns = [
     # # ==================== 权限管理接口 ====================
     path("get_permission_list/", views.get_permission_list, name="get_permission_list"),
     path("get_permission_detail/", views.get_permission_detail, name="get_permission_detail"),
-    path("create_permission/", views.create_permission, name="create_permission"),
-    path("update_permission/", views.update_permission, name="update_permission"),
-    path("delete_permission/", views.delete_permission, name="delete_permission"),
-    path("get_content_type_list/", views.get_content_type_list, name="get_content_type_list"),
+    path("get_permission_filter_options/", views.get_permission_filter_options, name="get_permission_filter_options"),
     # # ==================== 用户权限管理 ====================
     # path("get_user_permissions/", views.get_user_permissions, name="get_user_permissions"),
     # path("add_permission_to_user/", views.add_permission_to_user, name="add_permission_to_user"),
