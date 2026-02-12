@@ -45,17 +45,19 @@ import {
   SettingOutlined,
   UserOutlined,
 } from '@ant-design/icons-vue'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const selectedKeys = ref([route.path])
 const openKeys = ref([])
 
-// 菜单配置
-const menuItems = ref([
+// 菜单配置（原始数据）
+const menuItemsRaw = ref([
   {
     key: '/',
     title: '首页',
@@ -76,9 +78,9 @@ const menuItems = ref([
     title: '认证管理',
     icon: UserOutlined,
     children: [
-      { key: '/authorization/users', title: '用户管理' },
-      { key: '/authorization/roles', title: '角色管理' },
-      { key: '/authorization/permissions', title: '权限管理' },
+      { key: '/authorization/users', title: '用户管理', permission: 'auth.view_user' },
+      { key: '/authorization/roles', title: '角色管理', permission: 'auth.view_group' },
+      { key: '/authorization/permissions', title: '权限管理', permission: 'auth.view_permission' },
     ],
   },
   {
@@ -108,10 +110,28 @@ const menuItems = ref([
   },
 ])
 
+// 根据权限过滤菜单：无 view_user / view_group / view_permission 则不显示对应用户管理、角色管理、权限管理
+const menuItems = computed(() => {
+  const user = authStore.user
+  const isSuper = user?.is_superuser === true
+  const perms = user?.permissions || []
+
+  const hasPerm = (perm) => isSuper || perms.includes(perm)
+
+  return menuItemsRaw.value.map((item) => {
+    if (item.key !== '/authorization' || !item.children?.length) return item
+    const children = item.children.filter(
+      (child) => !child.permission || hasPerm(child.permission),
+    )
+    if (children.length === 0) return null
+    return { ...item, children }
+  }).filter(Boolean)
+})
+
 // 初始化展开的菜单
 const initOpenKeys = () => {
   const path = route.path
-  menuItems.value.forEach((item) => {
+  menuItemsRaw.value.forEach((item) => {
     if (item.children) {
       const hasActive = item.children.some((child) => path.startsWith(child.key))
       if (hasActive && !openKeys.value.includes(item.key)) {

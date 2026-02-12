@@ -127,6 +127,8 @@ def get_current_user(request):
     profile = getattr(user, "profile", None)
     real_name = (profile.real_name or "").strip() if profile else ""
     roles = [{"id": g.id, "name": g.name} for g in user.groups.all()]
+    # 当前用户拥有的权限列表（完整权限名，如 auth.add_user），供前端控制按钮禁用等
+    permissions = list(user.get_all_permissions()) if user.is_authenticated else []
 
     return Resp.success(
         data={
@@ -137,6 +139,7 @@ def get_current_user(request):
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
             "roles": roles,
+            "permissions": permissions,
         },
         msg="获取成功",
     )
@@ -310,6 +313,7 @@ def delete_user(request):
 
 @api_view(["POST"])
 def change_password(request):
+    """仅允许修改当前登录用户自己的密码（不接收 user_id，只操作 request.user）。"""
     serializer = ChangePasswordSerializer(data=request.data)
     if not serializer.is_valid():
         errors = serializer.errors

@@ -12,7 +12,15 @@ import {
 import { SearchOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
+
+const authStore = useAuthStore()
+const canAddUser = computed(
+  () =>
+    authStore.user?.is_superuser === true ||
+    (authStore.user?.permissions || []).includes('auth.add_user'),
+)
 
 // 表格 body 最大高度，超出出现垂直滚动条（预留顶部、筛选、分页等空间，保证分页可见）
 const tableScrollY = ref('calc(100vh - 380px)')
@@ -182,7 +190,7 @@ const formState = reactive({
   password: '',
   real_name: '',
   is_active: true,
-  group_ids: [],
+  group_id: undefined, // 角色单选，只保存一个角色 id
 })
 
 const openCreate = () => {
@@ -193,7 +201,7 @@ const openCreate = () => {
     password: '',
     real_name: '',
     is_active: true,
-    group_ids: [],
+    group_id: undefined,
   })
   modalVisible.value = true
 }
@@ -203,13 +211,14 @@ const openEdit = async (record) => {
   try {
     const res = await getUserDetail({ user_id: record.id })
     const u = res.data || {}
+    const groups = u.groups || []
     Object.assign(formState, {
       user_id: u.id,
       username: u.username,
       password: '',
       real_name: u.real_name || '',
       is_active: u.is_active ?? true,
-      group_ids: (u.groups || []).map((g) => g.id),
+      group_id: groups.length ? groups[0].id : undefined,
     })
     modalVisible.value = true
   } catch (e) {
@@ -230,7 +239,7 @@ const handleModalOk = async () => {
         username: formState.username.trim(),
         real_name: formState.real_name,
         is_active: formState.is_active,
-        group_ids: formState.group_ids,
+        group_ids: formState.group_id != null ? [formState.group_id] : [],
       })
       message.success('更新成功')
     } else {
@@ -239,7 +248,7 @@ const handleModalOk = async () => {
         password: formState.password || '',
         real_name: formState.real_name,
         is_active: formState.is_active,
-        group_ids: formState.group_ids,
+        group_ids: formState.group_id != null ? [formState.group_id] : [],
       })
       message.success('创建成功')
     }
@@ -306,7 +315,7 @@ const handleToggleActive = async (record) => {
   <div class="users-view">
     <a-page-header title="用户管理" sub-title="" style="padding: 0 0 24px 0">
       <template #extra>
-        <a-button type="primary" @click="openCreate">
+        <a-button type="primary" :disabled="!canAddUser" @click="openCreate">
           <template #icon><UserAddOutlined /></template>
           添加用户
         </a-button>
@@ -392,11 +401,11 @@ const handleToggleActive = async (record) => {
         </a-form-item>
         <a-form-item label="角色">
           <a-select
-            v-model:value="formState.group_ids"
-            mode="multiple"
-            placeholder="选择角色"
+            v-model:value="formState.group_id"
+            placeholder="选择角色（单选）"
             style="width: 100%"
             :options="groupOptions.map((g) => ({ label: g.name, value: g.id }))"
+            allow-clear
           />
         </a-form-item>
         <a-form-item label="启用">

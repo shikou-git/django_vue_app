@@ -12,6 +12,14 @@ import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 import { SearchOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const canAddRole = computed(
+  () =>
+    authStore.user?.is_superuser === true ||
+    (authStore.user?.permissions || []).includes('auth.add_group'),
+)
 
 // 表格 body 最大高度，超出出现垂直滚动条（预留顶部、筛选、分页等空间，保证分页可见）
 const tableScrollY = ref('calc(100vh - 380px)')
@@ -297,7 +305,7 @@ const handleDelete = (record) => {
   <div class="roles-view">
     <a-page-header title="角色管理" sub-title="" style="padding: 0 0 24px 0">
       <template #extra>
-        <a-button type="primary" @click="openCreate">
+        <a-button type="primary" :disabled="!canAddRole" @click="openCreate">
           <template #icon><UserAddOutlined /></template>
           添加角色
         </a-button>

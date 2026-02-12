@@ -31,12 +31,4 @@ urlpatterns = [
     path("get_permission_list/", views.get_permission_list, name="get_permission_list"),
     path("get_permission_detail/", views.get_permission_detail, name="get_permission_detail"),
     path("get_permission_filter_options/", views.get_permission_filter_options, name="get_permission_filter_options"),
-    # # ==================== 用户权限管理 ====================
-    # path("get_user_permissions/", views.get_user_permissions, name="get_user_permissions"),
-    # path("add_permission_to_user/", views.add_permission_to_user, name="add_permission_to_user"),
-    # path("remove_permission_from_user/", views.remove_permission_from_user, name="remove_permission_from_user"),
-    # # ==================== 角色权限管理 ====================
-    # path("get_group_permissions/", views.get_group_permissions, name="get_group_permissions"),
-    # path("add_permission_to_group/", views.add_permission_to_group, name="add_permission_to_group"),
-    # path("remove_permission_from_group/", views.remove_permission_from_group, name="remove_permission_from_group"),
 ]
