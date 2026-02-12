@@ -18,6 +18,11 @@ class UserProfile(models.Model):
         verbose_name = "用户扩展信息"
         verbose_name_plural = verbose_name
 
+        permissions = [
+            ("export_user", "导出用户"),
+            ("import_user", "导入用户"),
+        ]
+
     def __str__(self):
         return self.user.username
 
