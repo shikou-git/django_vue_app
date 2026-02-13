@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
     "apps.authorization",
     "apps.apilog",
+    "apps.system",
 ]
 
 MIDDLEWARE = [

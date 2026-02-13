@@ -33,7 +33,7 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth'
 import { SIDEBAR_DEFAULT_EXPAND_ALL } from '@/utils/const'
-import { AuditOutlined, HomeOutlined, UserOutlined } from '@ant-design/icons-vue'
+import { AuditOutlined, HomeOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons-vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -75,7 +75,7 @@ const menuItemsRaw = ref([
     title: '系统设置',
     icon: SettingOutlined,
     children: [
-      { key: '/system/announcement', title: '公告管理' },
+      { key: '/system/base', title: '基本设置', permission: 'system.change_basesetting' },
     ],
   },
 ])

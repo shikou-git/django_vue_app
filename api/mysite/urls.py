@@ -22,4 +22,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.authorization.urls")),  # 用户权限管理 API
     path("api/apilog/", include("apps.apilog.urls")),  # 接口日志 API
+    path("api/system/", include("apps.system.urls")),  # 系统设置 API
 ]

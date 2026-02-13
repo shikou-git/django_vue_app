@@ -15,6 +15,14 @@
         <span class="logo-text">后台管理系统</span>
       </div>
     </div>
+
+    <div v-if="announcement.enabled && announcement.content" class="header-center">
+      <div class="announcement-wrap">
+        <SoundOutlined class="announcement-icon" />
+        <span class="announcement-label">公告：</span>
+        <span class="announcement-text">{{ announcement.content }}</span>
+      </div>
+    </div>
     
     <div class="header-right">
       <a-space :size="16">
@@ -100,11 +108,13 @@ import {
   UserOutlined,
   DownOutlined,
   LogoutOutlined,
+  SoundOutlined,
 } from '@ant-design/icons-vue'
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { changePassword as apiChangePassword } from '@/api/auth'
+import { getBaseSettings } from '@/api/system'
 
 defineProps({
   collapsed: {
@@ -116,7 +126,28 @@ defineProps({
 defineEmits(['toggle-sidebar'])
 
 const auth = useAuthStore()
+const announcement = ref({ content: '', enabled: false })
 const centerVisible = ref(false)
+
+function fetchAnnouncement() {
+  getBaseSettings()
+    .then((res) => {
+      const d = res.data || {}
+      announcement.value = {
+        content: (d.announcement_content || '').trim(),
+        enabled: !!d.announcement_enabled,
+      }
+    })
+    .catch(() => {})
+}
+
+onMounted(() => {
+  fetchAnnouncement()
+  window.addEventListener('base-settings-updated', fetchAnnouncement)
+})
+onUnmounted(() => {
+  window.removeEventListener('base-settings-updated', fetchAnnouncement)
+})
 const centerTabKey = ref('password')
 const pwdFormRef = ref(null)
 const pwdLoading = ref(false)
@@ -177,6 +208,7 @@ async function onChangePassword() {
   justify-content: space-between;
   height: 64px;
   padding: 0 24px;
+  gap: 16px;
 }
 
 .header-left {
@@ -193,6 +225,50 @@ async function onChangePassword() {
   font-size: 20px;
   font-weight: 600;
   color: #001529;
+}
+
+.header-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.announcement-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  line-height: 2;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f7ff 100%);
+  border-radius: 4px;
+  border: 1px solid #91caff;
+  max-width: 100%;
+  overflow: hidden;
+  max-height: 36px;
+  box-sizing: border-box;
+}
+.announcement-icon {
+  font-size: 18px;
+  color: #1677ff;
+  flex-shrink: 0;
+}
+.announcement-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1677ff;
+  flex-shrink: 0;
+}
+.announcement-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .header-right {

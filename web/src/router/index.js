@@ -67,6 +67,12 @@ const router = createRouter({
       meta: { permission: 'apilog.view_apilog' },
     },
     {
+      path: '/system/base',
+      name: 'system-base',
+      component: () => import('../views/system/BaseSettingsView.vue'),
+      meta: { permission: 'system.change_basesetting' },
+    },
+    {
       path: '/403',
       name: 'forbidden',
       component: () => import('../components/result/ForbiddenView.vue'),
