@@ -32,14 +32,8 @@
 
 <script setup>
 import { useAuthStore } from '@/stores/auth'
-import {
-  AuditOutlined,
-  DashboardOutlined,
-  HomeOutlined,
-  InfoCircleOutlined,
-  SettingOutlined,
-  UserOutlined,
-} from '@ant-design/icons-vue'
+import { SIDEBAR_DEFAULT_EXPAND_ALL } from '@/utils/const'
+import { AuditOutlined, HomeOutlined, UserOutlined } from '@ant-design/icons-vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -58,16 +52,6 @@ const menuItemsRaw = ref([
     icon: HomeOutlined,
   },
   {
-    key: '/dashboard',
-    title: '仪表盘',
-    icon: DashboardOutlined,
-    children: [
-      { key: '/dashboard/analysis', title: '分析页' },
-      { key: '/dashboard/monitor', title: '监控页' },
-      { key: '/dashboard/workplace', title: '工作台' },
-    ],
-  },
-  {
     key: '/authorization',
     title: '认证管理',
     icon: UserOutlined,
@@ -81,24 +65,18 @@ const menuItemsRaw = ref([
     key: '/logs',
     title: '日志管理',
     icon: AuditOutlined,
-    children: [{ key: '/apilog', title: '接口日志', permission: 'apilog.view_apilog' }],
-  },
-  {
-    key: '/settings',
-    title: '系统设置',
-    icon: SettingOutlined,
     children: [
-      { key: '/settings/general', title: '基本设置' },
-      { key: '/settings/security', title: '安全设置' },
-      { key: '/settings/notification', title: '通知设置' },
+      { key: '/apilog', title: '接口日志', permission: 'apilog.view_apilog' },
+      { key: '/api_stats', title: '接口统计', permission: 'apilog.view_apilog' },
     ],
   },
-  {
-    key: '/about',
-    title: '关于',
-    icon: InfoCircleOutlined,
-  },
 ])
+
+if (SIDEBAR_DEFAULT_EXPAND_ALL) {
+  openKeys.value = menuItemsRaw.value
+    .filter((i) => i.children?.length)
+    .map((i) => `sub_${i.key}`)
+}
 
 // 根据权限过滤菜单：无 view_user / view_group / view_permission 则不显示对应用户管理、角色管理、权限管理
 const menuItems = computed(() => {
@@ -120,20 +98,23 @@ const menuItems = computed(() => {
     .filter(Boolean)
 })
 
-// 初始化展开的菜单
+// 初始化展开的菜单（仅当未配置“默认全部展开”时，展开当前所在菜单）
 const initOpenKeys = () => {
   const path = route.path
+  const subKey = (key) => `sub_${key}`
   menuItemsRaw.value.forEach((item) => {
     if (item.children) {
       const hasActive = item.children.some((child) => path.startsWith(child.key))
-      if (hasActive && !openKeys.value.includes(item.key)) {
-        openKeys.value.push(item.key)
+      if (hasActive && !openKeys.value.includes(subKey(item.key))) {
+        openKeys.value.push(subKey(item.key))
       }
     }
   })
 }
 
-initOpenKeys()
+if (!SIDEBAR_DEFAULT_EXPAND_ALL) {
+  initOpenKeys()
+}
 
 // 监听路由变化更新选中的菜单
 watch(

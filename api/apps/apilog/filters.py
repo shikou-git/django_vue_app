@@ -45,10 +45,16 @@ class ApiLogFilter(django_filters.FilterSet):
         return queryset.filter(status_code__in=value)
 
     def filter_user_ids(self, queryset, name, value):
-        """用户ID多选筛选"""
+        """用户ID多选筛选；value 中可含 __null__ 表示筛选 user_id 为空的记录（未登录）"""
         if not value or not isinstance(value, list):
             return queryset
-        return queryset.filter(user_id__in=value)
+        has_null = "__null__" in value
+        ids = [v for v in value if v != "__null__"]
+        if has_null and ids:
+            return queryset.filter(Q(user_id__isnull=True) | Q(user_id__in=ids))
+        if has_null:
+            return queryset.filter(user_id__isnull=True)
+        return queryset.filter(user_id__in=ids)
 
     def filter_ip_addresses(self, queryset, name, value):
         """IP多选筛选"""

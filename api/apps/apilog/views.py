@@ -1,6 +1,9 @@
 import csv
+import datetime
 from io import StringIO
 
+from django.contrib.auth import get_user_model
+from django.db.models import Count
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.decorators import api_view
@@ -161,12 +164,152 @@ def get_filter_options(request):
     if search:
         queryset = queryset.filter(**{f"{field}__icontains": search})
     
-    values = (
-        queryset.values_list(field, flat=True)
-        .exclude(**{field: None})
-        .distinct()
-        .order_by(field)[:100]
-    )
-    
-    options = [{"label": str(v), "value": v} for v in values]
+    options = []
+    if field == "user_id":
+        if not search and queryset.filter(user_id__isnull=True).exists():
+            options.append({"label": "空（未登录）", "value": "__null__"})
+        values = (
+            queryset.values_list(field, flat=True)
+            .exclude(**{field: None})
+            .distinct()
+            .order_by(field)[:99]
+        )
+        options.extend([{"label": str(v), "value": v} for v in values])
+    else:
+        values = (
+            queryset.values_list(field, flat=True)
+            .exclude(**{field: None})
+            .distinct()
+            .order_by(field)[:100]
+        )
+        options = [{"label": str(v), "value": v} for v in values]
     return Resp.success(data={"options": options}, msg="获取成功")
+
+
+def _parse_stats_time_range(data):
+    """
+    根据 filter_type (year|month|day|range) 和对应参数，返回 (start_utc, end_utc) 或 None。
+    使用项目配置的当前时区（settings.TIME_ZONE）作为“本地时间”解释日期。
+    """
+    tz = timezone.get_current_timezone()
+    filter_type = (data.get("filter_type") or "").strip().lower()
+    now_local = timezone.localtime(timezone.now())
+
+    if filter_type == "year":
+        year = data.get("year")
+        if year is None:
+            year = now_local.year
+        try:
+            year = int(year)
+        except (TypeError, ValueError):
+            return None
+        start_local = datetime.datetime(year, 1, 1, tzinfo=tz)
+        end_local = datetime.datetime(year, 12, 31, 23, 59, 59, 999999, tzinfo=tz)
+    elif filter_type == "month":
+        year = data.get("year")
+        month = data.get("month")
+        if year is None:
+            year = now_local.year
+        if month is None:
+            month = now_local.month
+        try:
+            year, month = int(year), int(month)
+        except (TypeError, ValueError):
+            return None
+        if not (1 <= month <= 12):
+            return None
+        start_local = datetime.datetime(year, month, 1, tzinfo=tz)
+        if month == 12:
+            end_local = datetime.datetime(year, 12, 31, 23, 59, 59, 999999, tzinfo=tz)
+        else:
+            end_local = datetime.datetime(year, month + 1, 1, tzinfo=tz) - datetime.timedelta(microseconds=1)
+    elif filter_type == "day":
+        year = data.get("year")
+        month = data.get("month")
+        day = data.get("day")
+        if year is None:
+            year = now_local.year
+        if month is None:
+            month = now_local.month
+        if day is None:
+            day = now_local.day
+        try:
+            year, month, day = int(year), int(month), int(day)
+        except (TypeError, ValueError):
+            return None
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            return None
+        start_local = datetime.datetime(year, month, day, 0, 0, 0, 0, tzinfo=tz)
+        end_local = datetime.datetime(year, month, day, 23, 59, 59, 999999, tzinfo=tz)
+    elif filter_type == "range":
+        date_start = data.get("date_start")
+        date_end = data.get("date_end")
+        if not date_start or not date_end:
+            return None
+        try:
+            start_local = datetime.datetime.strptime(str(date_start).strip()[:10], "%Y-%m-%d").replace(tzinfo=tz)
+            end_date = datetime.datetime.strptime(str(date_end).strip()[:10], "%Y-%m-%d")
+            end_local = end_date.replace(tzinfo=tz) + datetime.timedelta(days=1) - datetime.timedelta(microseconds=1)
+        except (ValueError, TypeError):
+            return None
+        if start_local > end_local:
+            return None
+    else:
+        return None
+
+    start_utc = start_local.astimezone(datetime.timezone.utc)
+    end_utc = end_local.astimezone(datetime.timezone.utc)
+    return start_utc, end_utc
+
+
+@api_view(["POST"])
+@check_permission("apilog.view_apilog")
+def get_api_stats(request):
+    """
+    接口统计：各接口调用量排行、Top 用户调用量排行。
+    POST body: filter_type (year|month|day|range),
+                year, month, day （filter_type 为 year/month/day 时使用），
+                date_start, date_end （filter_type 为 range 时使用，格式 YYYY-MM-DD）
+    返回: api_ranking [{ path, method, count }], user_ranking [{ user_id, username, count }]
+    """
+    data = request.data or {}
+    time_range = _parse_stats_time_range(data)
+    queryset = ApiLog.objects.all()
+    if time_range:
+        start_utc, end_utc = time_range
+        queryset = queryset.filter(created_at__gte=start_utc, created_at__lte=end_utc)
+
+    api_ranking = (
+        queryset.values("path", "method")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:30]
+    )
+    api_ranking = [
+        {"path": r["path"] or "", "method": r["method"] or "", "count": r["count"]}
+        for r in api_ranking
+    ]
+
+    user_ranking = (
+        queryset.values("user_id")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:30]
+    )
+    user_ids = [r["user_id"] for r in user_ranking if r["user_id"]]
+    User = get_user_model()
+    usernames = {}
+    if user_ids:
+        for u in User.objects.filter(id__in=user_ids).values_list("id", "username"):
+            usernames[u[0]] = u[1] or ""
+    user_ranking = [
+        {
+            "user_id": r["user_id"],
+            "username": usernames.get(r["user_id"], "匿名") if r["user_id"] else "匿名",
+            "count": r["count"],
+        }
+        for r in user_ranking
+    ]
+
+    return Resp.success(
+        data={"api_ranking": api_ranking, "user_ranking": user_ranking},
+        msg="获取成功",
+    )

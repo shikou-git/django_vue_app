@@ -124,6 +124,16 @@ watch(searchText, () => {
   }, SEARCH_DEBOUNCE_MS)
 })
 
+const handleResetFilters = () => {
+  searchText.value = ''
+  tableFilters.value = {
+    app_label: [],
+    model: [],
+  }
+  pagination.current = 1
+  loadList()
+}
+
 const handleTableChange = (pag, filters, sorter) => {
   const filtersChanged = JSON.stringify(tableFilters.value) !== JSON.stringify(filters)
   tableFilters.value = filters
@@ -151,6 +161,7 @@ const handleTableChange = (pag, filters, sorter) => {
         >
           <template #prefix><SearchOutlined /></template>
         </a-input>
+        <a-button @click="handleResetFilters">重置</a-button>
       </div>
 
       <a-table

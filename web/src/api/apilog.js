@@ -21,6 +21,11 @@ export function getFilterOptions(data) {
   return request.post('/apilog/get_filter_options/', data)
 }
 
+/** 接口统计：接口调用量排行、Top 用户调用量排行。body: filter_type, year, month, day, date_start, date_end */
+export function getApiStats(data) {
+  return request.post('/apilog/get_api_stats/', data)
+}
+
 /** 导出接口日志为 CSV */
 export function exportApilog(data = {}) {
   return downloadFile('/apilog/export_apilog/', data)

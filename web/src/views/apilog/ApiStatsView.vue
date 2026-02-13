@@ -1,0 +1,186 @@
+<script setup>
+import { getApiStats } from '@/api/apilog'
+import dayjs from 'dayjs'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { computed, onMounted, ref, watch } from 'vue'
+import VChart from 'vue-echarts'
+
+use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent])
+
+const filterType = ref('month')
+const year = ref(dayjs().year())
+const month = ref(dayjs().month() + 1)
+const dayDate = ref(dayjs().format('YYYY-MM-DD'))
+const dateRange = ref([
+  dayjs().startOf('month').format('YYYY-MM-DD'),
+  dayjs().endOf('month').format('YYYY-MM-DD'),
+])
+
+const loading = ref(false)
+const apiRanking = ref([])
+const userRanking = ref([])
+
+const yearOptions = computed(() => {
+  const y = dayjs().year()
+  return Array.from({ length: 5 }, (_, i) => y - 2 + i)
+})
+
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `${i + 1} 月` }))
+
+const requestPayload = computed(() => {
+  const payload = { filter_type: filterType.value }
+  if (filterType.value === 'year') {
+    payload.year = year.value
+  } else if (filterType.value === 'month') {
+    payload.year = year.value
+    payload.month = month.value
+  } else if (filterType.value === 'day' && dayDate.value) {
+    const d = dayjs(dayDate.value)
+    payload.year = d.year()
+    payload.month = d.month() + 1
+    payload.day = d.date()
+  } else if (filterType.value === 'range' && dateRange.value?.length === 2) {
+    payload.date_start = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
+    payload.date_end = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
+  }
+  return payload
+})
+
+async function loadStats() {
+  if (filterType.value === 'range' && dateRange.value?.length !== 2) return
+  if (filterType.value === 'day' && !dayDate.value) return
+  loading.value = true
+  try {
+    const res = await getApiStats(requestPayload.value)
+    apiRanking.value = res.data?.api_ranking ?? []
+    userRanking.value = res.data?.user_ranking ?? []
+  } finally {
+    loading.value = false
+  }
+}
+
+const apiChartOption = computed(() => ({
+  title: { text: 'Top 接口调用量排行', left: 'center' },
+  tooltip: { trigger: 'axis' },
+  grid: { left: '20%', right: '12%', top: '12%', bottom: '12%', containLabel: true },
+  xAxis: { type: 'value', name: '调用次数' },
+  yAxis: {
+    type: 'category',
+    data: apiRanking.value.map((r) => `${r.method} ${r.path}`.trim() || '(空)').reverse(),
+    axisLabel: { width: 120, overflow: 'truncate' },
+  },
+  series: [
+    {
+      type: 'bar',
+      data: apiRanking.value.map((r) => r.count).reverse(),
+      itemStyle: { color: '#1890ff' },
+    },
+  ],
+}))
+
+const userChartOption = computed(() => ({
+  title: { text: 'Top 用户调用量排行', left: 'center' },
+  tooltip: { trigger: 'axis' },
+  grid: { left: '15%', right: '12%', top: '12%', bottom: '12%', containLabel: true },
+  xAxis: { type: 'value', name: '调用次数' },
+  yAxis: {
+    type: 'category',
+    data: userRanking.value.map((r) => r.username || '匿名').reverse(),
+    axisLabel: { width: 80, overflow: 'truncate' },
+  },
+  series: [
+    {
+      type: 'bar',
+      data: userRanking.value.map((r) => r.count).reverse(),
+      itemStyle: { color: '#52c41a' },
+    },
+  ],
+}))
+
+onMounted(loadStats)
+watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
+</script>
+
+<template>
+  <div class="api-stats-view">
+    <div class="filter-bar">
+      <a-space wrap>
+        <span>筛选：</span>
+        <a-radio-group v-model:value="filterType" button-style="solid">
+          <a-radio-button value="year">年</a-radio-button>
+          <a-radio-button value="month">月</a-radio-button>
+          <a-radio-button value="day">日</a-radio-button>
+          <a-radio-button value="range">日期段</a-radio-button>
+        </a-radio-group>
+        <template v-if="filterType === 'year'">
+          <a-select
+            v-model:value="year"
+            style="width: 100px"
+            :options="yearOptions.map((y) => ({ value: y, label: `${y} 年` }))"
+          />
+        </template>
+        <template v-else-if="filterType === 'month'">
+          <a-select
+            v-model:value="year"
+            style="width: 100px"
+            :options="yearOptions.map((y) => ({ value: y, label: `${y} 年` }))"
+          />
+          <a-select v-model:value="month" style="width: 100px" :options="monthOptions" />
+        </template>
+        <template v-else-if="filterType === 'day'">
+          <a-date-picker
+            v-model:value="dayDate"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 140px"
+          />
+        </template>
+        <template v-else-if="filterType === 'range'">
+          <a-range-picker
+            v-model:value="dateRange"
+            value-format="YYYY-MM-DD"
+            style="width: 240px"
+          />
+        </template>
+        <a-button type="primary" :loading="loading" @click="loadStats">查询</a-button>
+      </a-space>
+    </div>
+    <a-spin :spinning="loading">
+      <div class="charts">
+        <div class="chart-card">
+          <v-chart class="chart" :option="apiChartOption" autoresize />
+        </div>
+        <div class="chart-card">
+          <v-chart class="chart" :option="userChartOption" autoresize />
+        </div>
+      </div>
+    </a-spin>
+  </div>
+</template>
+
+<style scoped>
+.api-stats-view {
+  padding: 16px;
+}
+.filter-bar {
+  margin-bottom: 20px;
+}
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.chart-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.chart {
+  height: 380px;
+  width: 100%;
+}
+</style>

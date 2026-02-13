@@ -164,6 +164,17 @@ watch(searchText, () => {
   }, SEARCH_DEBOUNCE_MS)
 })
 
+const handleResetFilters = () => {
+  searchText.value = ''
+  tableFilters.value = {
+    groups: [],
+    is_active: [],
+    is_superuser: [],
+  }
+  pagination.current = 1
+  loadList()
+}
+
 const handleTableChange = (pag, filters, sorter) => {
   const filtersChanged = JSON.stringify(tableFilters.value) !== JSON.stringify(filters)
   tableFilters.value = filters
@@ -328,6 +339,7 @@ const handleToggleActive = async (record) => {
         >
           <template #prefix><SearchOutlined /></template>
         </a-input>
+        <a-button @click="handleResetFilters">重置</a-button>
       </div>
 
       <a-table

@@ -102,6 +102,7 @@ const columns = computed(() => [
     dataIndex: 'user_id',
     key: 'user_id',
     width: 90,
+    customRender: ({ text }) => (text !== undefined && text !== null && text !== '' ? text : '未登录'),
     filterDropdown: renderMultiSelectFilterDropdown({
       columnKey: 'user_id',
       placeholder: '用户ID',
@@ -180,7 +181,12 @@ const handleSearch = () => {
 }
 
 const handleResetFilters = () => {
-  tableFilters.value = {}
+  tableFilters.value = {
+    path: [],
+    status_code: [],
+    user_id: [],
+    ip_address: [],
+  }
   timeRange.created_at_start = undefined
   timeRange.created_at_end = undefined
   pagination.current = 1

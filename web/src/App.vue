@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
-import AdminLayout from './layouts/AdminLayout.vue'
+import AdminLayout from './components/layout/AdminLayout.vue'
 
 const route = useRoute()
 const showLayout = computed(() => !route.meta.hideLayout)

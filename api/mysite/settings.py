@@ -13,10 +13,7 @@ import environ
 # 项目根目录：api/
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(
-    DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, []),
-)
+env = environ.Env(DEBUG=(bool, False), ALLOWED_HOSTS=(list, []))
 
 # 从项目根目录的 .env 加载（.env 按环境各自维护，不提交版本库）
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
@@ -103,7 +100,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # ---------- 国际化 ----------
 LANGUAGE_CODE = "zh-hans"  # 语言代码，设置项目的默认语言
-TIME_ZONE = "Asia/Shanghai"
+TIME_ZONE = "Asia/Shanghai"  # 北京时区
 USE_I18N = True  # 启用国际化支持
 USE_TZ = True  # 启用时区支持
 

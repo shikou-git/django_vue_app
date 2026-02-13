@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
+import HomeView from '../views/HomeView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -61,14 +61,25 @@ const router = createRouter({
       meta: { permission: 'apilog.view_apilog' },
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
+      path: '/api_stats',
+      name: 'api_stats',
+      component: () => import('../views/apilog/ApiStatsView.vue'),
+      meta: { permission: 'apilog.view_apilog' },
     },
     {
       path: '/403',
       name: 'forbidden',
-      component: () => import('../views/ForbiddenView.vue'),
+      component: () => import('../components/result/ForbiddenView.vue'),
+    },
+    {
+      path: '/404',
+      name: 'notFound',
+      component: () => import('../components/result/NotFoundView.vue'),
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'notFoundCatch',
+      component: () => import('../components/result/NotFoundView.vue'),
     },
   ],
 })

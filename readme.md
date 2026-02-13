@@ -8,41 +8,28 @@
 
 ## 多环境配置（django-environ）
 
-- **实际生效的是 `.env`**：Django 从 `api/.env` 读环境变量；**启动时可通过 `DJANGO_ENV` 指定环境**，见下。
-- **`.env`、`.env.dev`、`.env.test`、`.env.prod` 不提交**；仓库里只放模板和示例（`.env.dist`、`.env.*.example`）。
-
-### 启动时指定环境
-
-**方式一：用环境变量指定（推荐）**
-
-先按环境准备好对应文件（复制示例并改名）：`.env.dev`、`.env.test`、`.env.prod`（或只保留一份 `.env`）。启动时设置 `DJANGO_ENV`：
+配置加载顺序
+先读 .env（通用）
+若设置了 DJANGO_ENV=dev|test|prod 且存在 .env.dev / .env.test / .env.prod，再读该文件（覆盖前面的同名变量）
 
 ```bash
-cd api
-# 开发
+# 默认（只读取.env）
+python manage.py runserver
+
+# 开发（.env + .env.dev）
 set DJANGO_ENV=dev
 python manage.py runserver
 
-# 测试
+# 测试（.env + .env.test）
 set DJANGO_ENV=test
 python manage.py runserver
 
-# 生产（如 gunicorn）
+# 生产（.env + .env.prod，使用 gunicorn 生产级服务器）
 set DJANGO_ENV=prod
 gunicorn mysite.wsgi:application
 ```
 
 PowerShell 中设为：`$env:DJANGO_ENV="dev"`；Linux/macOS：`export DJANGO_ENV=dev`。
-
-**方式二：不指定**
-
-不设 `DJANGO_ENV` 时只读 `api/.env`。复制对应示例为 `.env` 即可：
-
-```bash
-cd api
-copy .env.dev.example .env
-python manage.py runserver
-```
 
 ## 其他
 
