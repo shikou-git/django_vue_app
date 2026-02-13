@@ -44,6 +44,25 @@ python manage.py migrate
 
 # 前端
 
-```bash
+## 多环境配置（Vite 环境文件）
 
+- **.env**：公共配置，所有命令都会加载
+- **.env.dev / .env.test / .env.prod**：按 `--mode` 加载，覆盖同名变量
+- **.env.dist**：变量说明模板，可提交；实际使用的 .env* 勿提交
+
+仅 **VITE_** 前缀变量会注入到前端（如 `import.meta.env.VITE_API_BASE_URL`）。
+
+| 命令 | 加载文件 | 说明 |
+|------|----------|------|
+| `npm run dev` | .env + .env.dev | 本地开发 |
+| `npm run build` / `npm run build:prod` | .env + .env.prod | 生产构建 |
+| `npm run build:test` | .env + .env.test | 测试环境构建 |
+| `npm run build:dev` | .env + .env.dev | 开发配置构建 |
+
+首次使用：复制 `web/.env.dist` 为 `web/.env`，或复制对应 `.env.dev` / `.env.prod` 为 `.env` 后按需修改。
+
+```bash
+cd web
+npm install
+npm run dev
 ```
