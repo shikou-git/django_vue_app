@@ -68,7 +68,7 @@ const apiChartOption = computed(() => {
   return {
     title: { text: 'Top 接口调用量排行', left: 'center' },
     tooltip: { trigger: 'axis' },
-    grid: { left: 20, right: 150, top: 36, bottom: 24, containLabel: true },
+    grid: { left: 20, right: 120, top: 36, bottom: 24, containLabel: true },
     xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
     yAxis: {
       name: '接口路径',
@@ -103,7 +103,7 @@ const apiChartOption = computed(() => {
           color: 'rgba(0,0,0,0.85)',
           padding: [0, 0, 0, 2],
           overflow: 'truncate',
-          width: 200,
+          width: 250,
           formatter: ({ dataIndex }) => labels[dataIndex] || '',
         },
       },
@@ -117,7 +117,7 @@ const userChartOption = computed(() => {
   return {
     title: { text: 'Top 用户调用量排行', left: 'center' },
     tooltip: { trigger: 'axis' },
-    grid: { left: 20, right: 100, top: 36, bottom: 24, containLabel: true },
+    grid: { left: 20, right: 50, top: 36, bottom: 24, containLabel: true },
     xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
     yAxis: {
       name: '用户名',

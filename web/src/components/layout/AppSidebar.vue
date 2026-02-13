@@ -70,6 +70,14 @@ const menuItemsRaw = ref([
       { key: '/api_stats', title: '接口统计', permission: 'apilog.view_apilog' },
     ],
   },
+  {
+    key: '/system',
+    title: '系统设置',
+    icon: SettingOutlined,
+    children: [
+      { key: '/system/announcement', title: '公告管理' },
+    ],
+  },
 ])
 
 if (SIDEBAR_DEFAULT_EXPAND_ALL) {
