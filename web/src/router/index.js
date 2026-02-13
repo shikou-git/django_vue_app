@@ -55,6 +55,12 @@ const router = createRouter({
       meta: { permission: 'auth.view_permission' },
     },
     {
+      path: '/apilog',
+      name: 'apilog',
+      component: () => import('../views/apilog/ApiLogView.vue'),
+      meta: { permission: 'apilog.view_apilog' },
+    },
+    {
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),

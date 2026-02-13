@@ -1,5 +1,6 @@
 <script setup>
 import { getPermissionFilterOptions, getPermissionList } from '@/api/auth'
+import { useTableMultiSelectFilter } from '@/components/table/useTableMultiSelectFilter'
 import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 import { SearchOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
@@ -18,6 +19,21 @@ const modelOptions = ref([])
 // 排序：{ columnKey: 'app_label', order: 'ascend' | 'descend' } 或 undefined
 const sorterState = ref(null)
 
+const loadOptionsForFilter = async (columnKey, search) => {
+  const list = columnKey === 'app_label' ? appLabelOptions.value : modelOptions.value
+  const lower = (search || '').toLowerCase()
+  const filtered = lower
+    ? list.filter((v) => String(v).toLowerCase().includes(lower))
+    : list
+  return filtered.map((v) => ({ label: v, value: v }))
+}
+
+const {
+  filterOptionsCache,
+  loadFilterOptions,
+  renderMultiSelectFilterDropdown,
+} = useTableMultiSelectFilter(loadOptionsForFilter)
+
 const columns = computed(() => [
   {
     title: 'App Label',
@@ -25,8 +41,11 @@ const columns = computed(() => [
     key: 'app_label',
     width: 140,
     sorter: true,
-    filters: appLabelOptions.value.map((v) => ({ text: v, value: v })),
+    filterDropdown: renderMultiSelectFilterDropdown({ columnKey: 'app_label', placeholder: 'App Label' }),
     filteredValue: tableFilters.value.app_label,
+    onFilterDropdownOpenChange: (open) => {
+      if (open && !filterOptionsCache.app_label?.length) loadFilterOptions('app_label', '')
+    },
   },
   {
     title: 'Model',
@@ -34,8 +53,11 @@ const columns = computed(() => [
     key: 'model',
     width: 140,
     sorter: true,
-    filters: modelOptions.value.map((v) => ({ text: v, value: v })),
+    filterDropdown: renderMultiSelectFilterDropdown({ columnKey: 'model', placeholder: 'Model' }),
     filteredValue: tableFilters.value.model,
+    onFilterDropdownOpenChange: (open) => {
+      if (open && !filterOptionsCache.model?.length) loadFilterOptions('model', '')
+    },
   },
   { title: 'Codename', dataIndex: 'codename', key: 'codename', width: 180, sorter: true },
   { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
@@ -51,7 +73,7 @@ const buildOrderBy = () => {
 
 const toArr = (v) => (Array.isArray(v) && v.length ? v : undefined)
 
-const loadFilterOptions = async () => {
+const loadPermissionFilterOptions = async () => {
   try {
     const res = await getPermissionFilterOptions()
     const d = res.data || {}
@@ -85,8 +107,8 @@ const loadList = async () => {
   }
 }
 
-onMounted(() => {
-  loadFilterOptions()
+onMounted(async () => {
+  await loadPermissionFilterOptions()
   loadList()
 })
 
@@ -165,5 +187,9 @@ const handleTableChange = (pag, filters, sorter) => {
 
 .filter-toolbar__search {
   width: 320px;
+}
+
+.permissions-view :deep(.table-multi-select-filter-dropdown) {
+  min-width: 200px;
 }
 </style>

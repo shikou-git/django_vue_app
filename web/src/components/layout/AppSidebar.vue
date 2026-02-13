@@ -9,10 +9,7 @@
       @click="handleMenuClick"
     >
       <template v-for="item in menuItems" :key="item?.key">
-        <a-sub-menu
-          v-if="item?.children?.length"
-          :key="`sub_${item.key}`"
-        >
+        <a-sub-menu v-if="item?.children?.length" :key="`sub_${item.key}`">
           <template #icon>
             <component :is="item.icon" />
           </template>
@@ -22,10 +19,7 @@
           </a-menu-item>
         </a-sub-menu>
 
-        <a-menu-item
-          v-else
-          :key="item.key"
-        >
+        <a-menu-item v-else :key="item.key">
           <template #icon>
             <component :is="item.icon" />
           </template>
@@ -37,9 +31,10 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
 import {
+  AuditOutlined,
   DashboardOutlined,
-  FileTextOutlined,
   HomeOutlined,
   InfoCircleOutlined,
   SettingOutlined,
@@ -47,7 +42,6 @@ import {
 } from '@ant-design/icons-vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,14 +78,10 @@ const menuItemsRaw = ref([
     ],
   },
   {
-    key: '/content',
-    title: '内容管理',
-    icon: FileTextOutlined,
-    children: [
-      { key: '/content/articles', title: '文章管理' },
-      { key: '/content/categories', title: '分类管理' },
-      { key: '/content/tags', title: '标签管理' },
-    ],
+    key: '/logs',
+    title: '日志管理',
+    icon: AuditOutlined,
+    children: [{ key: '/apilog', title: '接口日志', permission: 'apilog.view_apilog' }],
   },
   {
     key: '/settings',
@@ -118,14 +108,16 @@ const menuItems = computed(() => {
 
   const hasPerm = (perm) => isSuper || perms.includes(perm)
 
-  return menuItemsRaw.value.map((item) => {
-    if (item.key !== '/authorization' || !item.children?.length) return item
-    const children = item.children.filter(
-      (child) => !child.permission || hasPerm(child.permission),
-    )
-    if (children.length === 0) return null
-    return { ...item, children }
-  }).filter(Boolean)
+  return menuItemsRaw.value
+    .map((item) => {
+      if (!item.children?.length) return item
+      const children = item.children.filter(
+        (child) => !child.permission || hasPerm(child.permission),
+      )
+      if (children.length === 0) return null
+      return { ...item, children }
+    })
+    .filter(Boolean)
 })
 
 // 初始化展开的菜单

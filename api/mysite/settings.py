@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "rest_framework",  # Django REST framework
     "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
     "apps.authorization",  # 用户权限管理应用
+    "apps.apilog",  # 接口日志
 ]
 
 MIDDLEWARE = [
@@ -54,6 +55,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",  # 认证中间件，处理用户认证
     "django.contrib.messages.middleware.MessageMiddleware",  # 消息中间件，处理一次性消息
     "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 点击劫持保护中间件
+    "apps.apilog.middleware.ApiLogMiddleware",  # 接口日志记录
 ]
 
 # CORS 配置（跨域资源共享）
@@ -173,6 +175,10 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "user_id",
 }
 
+# 接口日志：不记录以下路径（前缀匹配，如 /static/）
+APILOG_EXCLUDE_PATHS = ["/static/", "/favicon.ico", "/api/apilog"]
+
 # Loguru 日志：接管标准 logging，使 Django/DRF 等日志统一输出到 loguru
 from utils.custom_logger import setup_logging_intercept
+
 setup_logging_intercept()
