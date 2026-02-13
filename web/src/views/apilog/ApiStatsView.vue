@@ -65,12 +65,13 @@ async function loadStats() {
 const apiChartOption = computed(() => ({
   title: { text: 'Top 接口调用量排行', left: 'center' },
   tooltip: { trigger: 'axis' },
-  grid: { left: '20%', right: '12%', top: '12%', bottom: '12%', containLabel: true },
-  xAxis: { type: 'value', name: '调用次数' },
+  grid: { left: 72, right: 48, top: 36, bottom: 24, containLabel: true },
+  xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
   yAxis: {
+    name: '接口路径',
     type: 'category',
-    data: apiRanking.value.map((r) => `${r.method} ${r.path}`.trim() || '(空)').reverse(),
-    axisLabel: { width: 120, overflow: 'truncate' },
+    data: apiRanking.value.map((r) => (r.path || '').trim() || '(空)').reverse(),
+    axisLabel: { width: 150, overflow: 'truncate' },
   },
   series: [
     {
@@ -84,12 +85,13 @@ const apiChartOption = computed(() => ({
 const userChartOption = computed(() => ({
   title: { text: 'Top 用户调用量排行', left: 'center' },
   tooltip: { trigger: 'axis' },
-  grid: { left: '15%', right: '12%', top: '12%', bottom: '12%', containLabel: true },
-  xAxis: { type: 'value', name: '调用次数' },
+  grid: { left: 52, right: 48, top: 36, bottom: 24, containLabel: true },
+  xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
   yAxis: {
+    name: '用户名',
     type: 'category',
     data: userRanking.value.map((r) => r.username || '匿名').reverse(),
-    axisLabel: { width: 80, overflow: 'truncate' },
+    axisLabel: { width: 44, overflow: 'truncate' },
   },
   series: [
     {
@@ -170,10 +172,12 @@ watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
 }
 .charts {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 24px;
 }
 .chart-card {
+  flex: 1;
+  min-width: 0;
   background: #fff;
   border-radius: 8px;
   padding: 16px;
@@ -182,5 +186,10 @@ watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
 .chart {
   height: 380px;
   width: 100%;
+}
+@media (max-width: 900px) {
+  .charts {
+    flex-direction: column;
+  }
 }
 </style>
