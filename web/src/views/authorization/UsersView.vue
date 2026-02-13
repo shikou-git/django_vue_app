@@ -9,11 +9,11 @@ import {
   toggleUserActive,
   updateUser,
 } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
+import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 import { SearchOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useAuthStore } from '@/stores/auth'
-import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
 
 const authStore = useAuthStore()
 const canAddUser = computed(
@@ -66,8 +66,6 @@ const columns = computed(() => [
     key: 'groups',
     width: 150,
     ellipsis: true,
-    sorter: true,
-    sortOrder: sorterState.value?.columnKey === 'groups' ? sorterState.value.order : undefined,
     filters: groupOptions.value.map((g) => ({ text: g.name, value: g.id })),
     filteredValue: tableFilters.value.groups,
   },
@@ -76,8 +74,6 @@ const columns = computed(() => [
     dataIndex: 'is_active',
     key: 'is_active',
     width: 90,
-    sorter: true,
-    sortOrder: sorterState.value?.columnKey === 'is_active' ? sorterState.value.order : undefined,
     filters: [
       { text: '启用', value: true },
       { text: '禁用', value: false },

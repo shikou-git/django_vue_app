@@ -8,11 +8,10 @@ import {
 } from '@/api/apilog'
 import { useTableMultiSelectFilter } from '@/components/table/useTableMultiSelectFilter'
 import { useAuthStore } from '@/stores/auth'
-import { SEARCH_DEBOUNCE_MS } from '@/utils/const'
-import { DeleteOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
+import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const authStore = useAuthStore()
 const canExport = computed(
@@ -29,7 +28,6 @@ const canDelete = computed(
 const tableScrollY = ref('calc(100vh - 380px)')
 const loading = ref(false)
 const exportLoading = ref(false)
-const searchText = ref('')
 const tableFilters = ref({})
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 const dataSource = ref([])
@@ -151,7 +149,6 @@ const loadList = async () => {
     const params = {
       page: pagination.current,
       page_size: pagination.pageSize,
-      search: searchText.value || undefined,
       path: toVal(toFilterVal(f.path)),
       status_code: toVal(toFilterVal(f.status_code)),
       user_id: toVal(toFilterVal(f.user_id)),
@@ -194,16 +191,6 @@ onMounted(() => {
   loadList()
 })
 
-let searchDebounceTimer = null
-watch(searchText, () => {
-  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
-  searchDebounceTimer = setTimeout(() => {
-    pagination.current = 1
-    loadList()
-    searchDebounceTimer = null
-  }, SEARCH_DEBOUNCE_MS)
-})
-
 const handleTableChange = (pag, filters, sorter) => {
   const filtersChanged = JSON.stringify(tableFilters.value) !== JSON.stringify(filters)
   tableFilters.value = filters
@@ -225,7 +212,6 @@ const handleExport = async () => {
   try {
     const f = tableFilters.value
     const params = {
-      search: searchText.value || undefined,
       path: toVal(toFilterVal(f.path)),
       status_code: toVal(toFilterVal(f.status_code)),
       user_id: toVal(toFilterVal(f.user_id)),
@@ -333,14 +319,6 @@ const handleBatchDelete = () => {
 
     <a-card :bordered="false">
       <div class="filter-toolbar">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索路径、User-Agent"
-          class="filter-toolbar__search"
-          allow-clear
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
         <a-date-picker
           v-model:value="timeRange.created_at_start"
           show-time
@@ -412,10 +390,6 @@ const handleBatchDelete = () => {
   align-items: center;
   margin-bottom: 16px;
   width: 100%;
-}
-
-.filter-toolbar__search {
-  width: 200px;
 }
 
 .filter-toolbar__date {
