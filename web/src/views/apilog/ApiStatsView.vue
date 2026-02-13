@@ -62,45 +62,75 @@ async function loadStats() {
   }
 }
 
-const apiChartOption = computed(() => ({
-  title: { text: 'Top 接口调用量排行', left: 'center' },
-  tooltip: { trigger: 'axis' },
-  grid: { left: 72, right: 48, top: 36, bottom: 24, containLabel: true },
-  xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
-  yAxis: {
-    name: '接口路径',
-    type: 'category',
-    data: apiRanking.value.map((r) => (r.path || '').trim() || '(空)').reverse(),
-    axisLabel: { width: 150, overflow: 'truncate' },
-  },
-  series: [
-    {
-      type: 'bar',
-      data: apiRanking.value.map((r) => r.count).reverse(),
-      itemStyle: { color: '#1890ff' },
+const apiChartOption = computed(() => {
+  const list = apiRanking.value
+  const labels = list.map((r) => (r.path || '').trim() || '(空)').reverse()
+  return {
+    title: { text: 'Top 接口调用量排行', left: 'center' },
+    tooltip: { trigger: 'axis' },
+    grid: { left: 20, right: 150, top: 36, bottom: 24, containLabel: true },
+    xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
+    yAxis: {
+      name: '接口路径',
+      type: 'category',
+      data: labels,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
-  ],
-}))
+    series: [
+      {
+        type: 'bar',
+        data: list.map((r) => r.count).reverse(),
+        itemStyle: { color: '#1890ff' },
+        label: {
+          show: true,
+          position: 'right',
+          color: 'rgba(0,0,0,0.85)',
+          padding: [0, 0, 0, 8],
+          overflow: 'truncate',
+          width: 200,
+          formatter: ({ dataIndex }) => labels[dataIndex] || '',
+        },
+      },
+    ],
+  }
+})
 
-const userChartOption = computed(() => ({
-  title: { text: 'Top 用户调用量排行', left: 'center' },
-  tooltip: { trigger: 'axis' },
-  grid: { left: 52, right: 48, top: 36, bottom: 24, containLabel: true },
-  xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
-  yAxis: {
-    name: '用户名',
-    type: 'category',
-    data: userRanking.value.map((r) => r.username || '匿名').reverse(),
-    axisLabel: { width: 44, overflow: 'truncate' },
-  },
-  series: [
-    {
-      type: 'bar',
-      data: userRanking.value.map((r) => r.count).reverse(),
-      itemStyle: { color: '#52c41a' },
+const userChartOption = computed(() => {
+  const list = userRanking.value
+  const labels = list.map((r) => r.username || '匿名').reverse()
+  return {
+    title: { text: 'Top 用户调用量排行', left: 'center' },
+    tooltip: { trigger: 'axis' },
+    grid: { left: 20, right: 100, top: 36, bottom: 24, containLabel: true },
+    xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
+    yAxis: {
+      name: '用户名',
+      type: 'category',
+      data: labels,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
-  ],
-}))
+    series: [
+      {
+        type: 'bar',
+        data: list.map((r) => r.count).reverse(),
+        itemStyle: { color: '#52c41a' },
+        label: {
+          show: true,
+          position: 'right',
+          color: 'rgba(0,0,0,0.85)',
+          padding: [0, 0, 0, 8],
+          overflow: 'truncate',
+          width: 80,
+          formatter: ({ dataIndex }) => labels[dataIndex] || '',
+        },
+      },
+    ],
+  }
+})
 
 onMounted(loadStats)
 watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
