@@ -92,7 +92,9 @@ else:
 
 # ---------- 密码校验 ----------
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},  # 验证密码与用户属性（如用户名）的相似度
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },  # 验证密码与用户属性（如用户名）的相似度
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},  # 验证密码最小长度
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},  # 验证密码是否为常见密码
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},  # 验证密码是否全为数字
@@ -128,6 +130,10 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    # 登录接口限流，防止暴力破解（按 IP，如 10 次/分钟）
+    "DEFAULT_THROTTLE_RATES": {
+        "login": env("LOGIN_THROTTLE_RATE", default="3/min"),
+    },
 }
 
 # ---------- Simple JWT ----------
