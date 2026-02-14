@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     "rest_framework",  # Django REST framework
     "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
     "apps.authorization",
-    "apps.apilog",
+    "apps.record",
     "apps.system",
 ]
 
@@ -49,7 +49,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",  # 认证中间件，处理用户认证
     "django.contrib.messages.middleware.MessageMiddleware",  # 消息中间件，处理一次性消息
     "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 点击劫持保护中间件
-    "apps.apilog.middleware.ApiLogMiddleware",
+    "apps.record.middleware.ApiLogMiddleware",
 ]
 
 # ---------- CORS ----------
@@ -151,7 +151,7 @@ SIMPLE_JWT = {
 }
 
 # ---------- 接口日志排除路径 ----------
-APILOG_EXCLUDE_PATHS = ["/static/", "/favicon.ico", "/api/apilog"]
+APILOG_EXCLUDE_PATHS = ["/static/", "/favicon.ico", "/api/record"]
 
 # ---------- Loguru 接管 logging ----------
 from utils.custom_logger import setup_logging_intercept

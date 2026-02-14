@@ -62,12 +62,12 @@ const menuItemsRaw = ref([
     ],
   },
   {
-    key: '/logs',
+    key: '/record',
     title: '日志管理',
     icon: AuditOutlined,
     children: [
-      { key: '/apilog', title: '接口日志', permission: 'apilog.view_apilog' },
-      { key: '/api_stats', title: '接口统计', permission: 'apilog.view_apilog' },
+      { key: '/record/apilog', title: '接口日志', permission: 'record.view_apilog' },
+      { key: '/record/apistats', title: '接口统计', permission: 'record.view_apilog' },
     ],
   },
   {

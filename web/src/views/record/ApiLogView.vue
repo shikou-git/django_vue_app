@@ -5,13 +5,40 @@ import {
   exportApilog,
   getApilogList,
   getFilterOptions,
-} from '@/api/apilog'
+} from '@/api/record.js'
 import { useTableMultiSelectFilter } from '@/components/table/useTableMultiSelectFilter'
 import { useAuthStore } from '@/stores/auth'
-import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons-vue'
+import { DeleteOutlined, DownloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, reactive, ref } from 'vue'
+
+const COLUMN_STORAGE_KEY = 'apilog_visible_columns'
+const DEFAULT_VISIBLE_KEYS = [
+  'id',
+  'path',
+  'status_code',
+  'user_id',
+  'ip_address',
+  'created_at',
+]
+
+const loadVisibleColumnKeys = () => {
+  try {
+    const raw = localStorage.getItem(COLUMN_STORAGE_KEY)
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr) && arr.length) return arr
+    }
+  } catch (_) {}
+  return [...DEFAULT_VISIBLE_KEYS]
+}
+
+const saveVisibleColumnKeys = (keys) => {
+  try {
+    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(keys))
+  } catch (_) {}
+}
 
 const authStore = useAuthStore()
 const canExport = computed(
@@ -63,7 +90,9 @@ const {
   return res.data?.options || []
 })
 
-const columns = computed(() => [
+const visibleColumnKeys = ref(loadVisibleColumnKeys())
+
+const allColumnDefs = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
   {
     title: '路径',
@@ -133,8 +162,27 @@ const columns = computed(() => [
     sorter: true,
     sortOrder: sorterState.value?.columnKey === 'created_at' ? sorterState.value.order : undefined,
   },
-  { title: '操作', key: 'action', width: 90, fixed: 'right' },
 ])
+
+const actionColumn = { title: '操作', key: 'action', width: 90, fixed: 'right' }
+
+const columns = computed(() => {
+  const keySet = new Set(visibleColumnKeys.value)
+  const visible = allColumnDefs.value.filter((col) => keySet.has(col.key))
+  return [...visible, actionColumn]
+})
+
+const columnOptions = computed(() =>
+  allColumnDefs.value.map((col) => ({ label: col.title, value: col.key })),
+)
+
+const onVisibleColumnsChange = (checkedValues) => {
+  const next = (checkedValues && checkedValues.length) ? checkedValues : [...DEFAULT_VISIBLE_KEYS]
+  visibleColumnKeys.value = next
+  saveVisibleColumnKeys(next)
+}
+
+const columnSettingOpen = ref(false)
 
 const rowSelection = computed(() => ({
   selectedRowKeys: selectedRowKeys.value,
@@ -344,6 +392,29 @@ const handleBatchDelete = () => {
         />
         <a-button type="primary" @click="handleSearch">查询</a-button>
         <a-button @click="handleResetFilters">重置</a-button>
+        <a-dropdown v-model:open="columnSettingOpen" :trigger="['click']">
+          <a-button>
+            <template #icon><SettingOutlined /></template>
+            列设置
+          </a-button>
+          <template #overlay>
+            <div class="column-setting-dropdown">
+              <div class="column-setting-title">展示列</div>
+              <a-checkbox-group
+                :value="visibleColumnKeys"
+                @update:value="onVisibleColumnsChange"
+                class="column-setting-group"
+              >
+                <div v-for="opt in columnOptions" :key="opt.value" class="column-setting-item">
+                  <a-checkbox :value="opt.value">{{ opt.label }}</a-checkbox>
+                </div>
+              </a-checkbox-group>
+              <a-button size="small" block class="column-setting-close" @click="columnSettingOpen = false">
+                确定
+              </a-button>
+            </div>
+          </template>
+        </a-dropdown>
       </div>
 
       <a-table
@@ -409,5 +480,36 @@ const handleBatchDelete = () => {
 .filter-toolbar__sep {
   color: rgba(0, 0, 0, 0.45);
   padding: 0 4px;
+}
+
+.column-setting-dropdown {
+  padding: 8px 12px;
+  min-width: 160px;
+  background: var(--ant-component-background, #fff);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.column-setting-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.column-setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.column-setting-item {
+  line-height: 28px;
+}
+
+.column-setting-close {
+  margin-top: 12px;
 }
 </style>
