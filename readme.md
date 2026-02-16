@@ -31,9 +31,21 @@ gunicorn mysite.wsgi:application
 
 PowerShell 中设为：`$env:DJANGO_ENV="dev"`；Linux/macOS：`export DJANGO_ENV=dev`。
 
+## 数据库（MySQL 5.7）
+
+默认使用 MySQL 5.7。在 `api/.env` 或 `api/.env.dev` 中配置：
+
+- **方式一**：`DATABASE_URL=mysql://用户:密码@主机:3306/数据库名`
+- **方式二**：不设 `DATABASE_URL` 时使用 `MYSQL_NAME`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_HOST`、`MYSQL_PORT`
+
+首次使用需在 MySQL 中创建数据库（如 `CREATE DATABASE django_vue_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`），再执行迁移。
+
 ## 其他
 
 ```bash
+# 安装依赖（含 mysqlclient）
+pip install -r api/requirements.txt
+
 # 导出顶层包
 pipdeptree --freeze --warn silence | findstr /r "^[a-zA-Z]" > requirements.txt
 
