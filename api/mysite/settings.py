@@ -15,8 +15,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(DEBUG=(bool, False), ALLOWED_HOSTS=(list, []))
 
-# 从项目根目录的 .env 加载（.env 按环境各自维护，不提交版本库）
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+DJANGO_ENV = os.environ.get("DJANGO_ENV", "dev")  # dev / test / prod 等
+env_file_name = ".env"
+if DJANGO_ENV == "dev":
+    env_file_name = ".env.dev"
+elif DJANGO_ENV == "test":
+    env_file_name = ".env.test"
+elif DJANGO_ENV == "prod":
+    env_file_name = ".env.prod"
+
+environ.Env.read_env(os.path.join(BASE_DIR, env_file_name))
+
 
 # ---------- 安全与基础 ----------
 SECRET_KEY = env("SECRET_KEY", default="django-insecure-dev-key-change-in-production")
@@ -81,7 +90,6 @@ WSGI_APPLICATION = "mysite.wsgi.application"  # WSGI应用对象，用于部署
 
 # ---------- 数据库（MySQL 5.7）----------
 # 方式一：设置 DATABASE_URL，例如 mysql://user:password@127.0.0.1:3306/dbname
-# 方式二：不设置 DATABASE_URL 时，使用下方 MYSQL_* 环境变量
 _db_url = env("DATABASE_URL", default=None)
 if _db_url:
     DATABASES = {"default": env.db("DATABASE_URL")}
@@ -89,19 +97,8 @@ else:
     DATABASES = {
         "default": {
             # sqlite3 数据库
-            # "ENGINE": "django.db.backends.sqlite3",
-            # "NAME": BASE_DIR / "db.sqlite3",
-            # mysql 数据库
-            "ENGINE": "django.db.backends.mysql",
-            "NAME": env("MYSQL_NAME", default="django_vue_app"),
-            "USER": env("MYSQL_USER", default="root"),
-            "PASSWORD": env("MYSQL_PASSWORD", default=""),
-            "HOST": env("MYSQL_HOST", default="127.0.0.1"),
-            "PORT": env("MYSQL_PORT", default="3306"),
-            "OPTIONS": {
-                "charset": "utf8mb4",
-                "init_command": "SET sql_mode='STRICT_TRANS_TABLES', innodb_strict_mode=1; SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
-            },
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 

@@ -27,8 +27,19 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+from django.db import connection
+
+
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):
     """用户创建时自动创建 UserProfile"""
-    if created:
-        UserProfile.objects.get_or_create(user=instance)
+
+    if not created:
+        return
+
+    # 🔥 关键：检查表是否已经创建
+    # 防止 migration 阶段触发
+    if UserProfile._meta.db_table not in connection.introspection.table_names():
+        return
+
+    UserProfile.objects.get_or_create(user=instance)
