@@ -3,6 +3,8 @@
 统一捕获 DRF 视图中的异常，返回项目标准格式 {"code": x, "msg": "...", "data": {}}
 """
 
+import re
+
 from django.conf import settings
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
@@ -35,6 +37,18 @@ def _format_drf_response(response):
     """将 DRF 默认响应格式转为项目统一格式"""
     data = response.data
     if isinstance(data, dict) and "code" not in data:
+        # 限流 429：返回中文提示
+        if response.status_code == 429:
+            detail = data.get("detail", "")
+            if isinstance(detail, str) and "available" in detail.lower():
+                m = re.search(r"(\d+)\s*second", detail, re.I)
+                msg = f"请求过于频繁，请 {m.group(1)} 秒后再试" if m else "请求过于频繁，请稍后再试"
+            else:
+                msg = "请求过于频繁，请稍后再试"
+            return Response(
+                {"code": 429, "msg": msg, "data": {}},
+                status=429,
+            )
         # 提取 msg：detail 或 ValidationError 的字段级错误
         msg = data.get("detail")
         if msg is None:

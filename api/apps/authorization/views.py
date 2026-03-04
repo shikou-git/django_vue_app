@@ -1,23 +1,16 @@
 # views.py
-import time
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User, Permission, Group
-from django.core.cache import cache
 from django.db.models import Min
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.authorization.filters import PermissionFilter, UserFilter
+from apps.authorization.throttles import LoginRateThrottle
 from apps.authorization.serializers import ChangePasswordSerializer, GroupSerializer, PermissionSerializer
-from utils.const import (
-    DEFAULT_PASSWORD,
-    LOGIN_FAILURE_WINDOW_SECONDS,
-    LOGIN_LOCKOUT_SECONDS,
-    LOGIN_MAX_FAILURES,
-    LOGIN_PUNISHMENT_TYPE,
-)
+from utils.const import DEFAULT_PASSWORD
 from utils.custom_decorators import check_permission, skip_authentication, skip_permission
 from utils.custom_response import Resp
 
@@ -65,26 +58,16 @@ def _user_to_dict(user, include_permissions=False):
 # ==================== 登录相关 ====================
 
 
-def _login_lockout_config():
-    """登录锁定相关配置（来自 utils.const）"""
-    return {
-        "window_seconds": LOGIN_FAILURE_WINDOW_SECONDS,
-        "max_failures": LOGIN_MAX_FAILURES,
-        "punishment_type": LOGIN_PUNISHMENT_TYPE,
-        "lockout_seconds": LOGIN_LOCKOUT_SECONDS,
-    }
-
-
 @api_view(["POST"])
+@throttle_classes([LoginRateThrottle])
 @skip_permission
 @skip_authentication
 def user_login(request):
     """
-    用户登录 - 使用 JWT 认证
-    支持：指定时间内失败次数达到阈值则锁定（可配置惩罚方式与解锁时间）。
+    用户登录 - 使用 JWT 认证。防暴力破解由 DRF throttle（如 LOGIN_THROTTLE_RATE）限流保障。
     POST /api/auth/login/
     {"username": "admin", "password": "password"}
-    返回: {"msg": "登录成功", "code": 0, "data": {"access": "...", "refresh": "...", "user": {...}}}
+    返回: {"msg": "登录成功", "code": 0, "data": {"access": "...", "refresh": "..."}}
     """
     username = (request.data.get("username") or "").strip()
     password = request.data.get("password")
@@ -92,67 +75,18 @@ def user_login(request):
     if not username or not password:
         return Resp.bad_request(msg="用户名和密码不能为空")
 
-    cfg = _login_lockout_config()
-    window_seconds = cfg["window_seconds"]
-    max_failures = cfg["max_failures"]
-    punishment_type = cfg["punishment_type"]
-    lockout_seconds = cfg["lockout_seconds"]
-
-    cache_key_locked = f"login_locked:{username}"
-    cache_key_failures = f"login_failures:{username}"
-    now_ts = time.time()
-
-    # 1) 检查是否处于冷却中（仅 cooldown 模式会设置；disable 模式不设冷却，账户需管理员恢复）
-    locked_until = cache.get(cache_key_locked)
-    if locked_until is not None and now_ts < locked_until:
-        remaining = int(locked_until - now_ts)
-        return Resp.forbidden(
-            msg=f"登录失败次数过多，请 {remaining} 秒（约 { (remaining + 59) // 60 } 分钟）后再试",
-            data={"lockout_seconds_remaining": remaining},
-        )
-
     try:
         user_by_name = User.objects.get(username=username)
     except User.DoesNotExist:
         user_by_name = None
 
-    # 2) 账户被禁用时直接拒绝（含因失败次数过多被禁用的情况，需管理员在用户管理中恢复）
     if user_by_name and not user_by_name.is_active:
         return Resp.forbidden(msg="该账户已被禁用，请联系管理员恢复")
 
-    # 3) 获取/刷新失败记录（超出时间窗口则重新计数）
-    failure_record = cache.get(cache_key_failures) or {"count": 0, "first_at": now_ts}
-    first_at = failure_record.get("first_at", now_ts)
-    if now_ts - first_at > window_seconds:
-        failure_record = {"count": 0, "first_at": now_ts}
-    count = failure_record.get("count", 0)
-
-    # 4) 验证用户名和密码
     user = authenticate(username=username, password=password)
 
     if not user:
-        count += 1
-        failure_record["count"] = count
-        failure_record["first_at"] = failure_record.get("first_at", now_ts)
-        cache.set(cache_key_failures, failure_record, timeout=window_seconds + 60)
-
-        if count >= max_failures:
-            cache.delete(cache_key_failures)
-            if punishment_type == "disable" and user_by_name:
-                user_by_name.is_active = False
-                user_by_name.save(update_fields=["is_active"])
-                return Resp.forbidden(msg="登录失败次数过多，账户已禁用，请联系管理员恢复")
-            locked_until = now_ts + lockout_seconds
-            cache.set(cache_key_locked, locked_until, timeout=lockout_seconds + 60)
-            return Resp.forbidden(
-                msg=f"登录失败次数过多，请 {lockout_seconds} 秒（约 { (lockout_seconds + 59) // 60 } 分钟）后再试",
-                data={"lockout_seconds_remaining": lockout_seconds},
-            )
         return Resp.unauthorized(msg="用户名或密码错误")
-
-    # 5) 登录成功：清除失败记录与冷却标记
-    cache.delete(cache_key_failures)
-    cache.delete(cache_key_locked)
 
     if not user.is_active:
         return Resp.forbidden(msg="该账户已被禁用")

@@ -1,5 +1,5 @@
 <script setup>
-import { getApiStats } from '@/api/apilog'
+import { getApiStats } from '@/api/record.js'
 import dayjs from 'dayjs'
 import { BarChart } from 'echarts/charts'
 import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components'
@@ -22,6 +22,14 @@ const dateRange = ref([
 const loading = ref(false)
 const apiRanking = ref([])
 const userRanking = ref([])
+const top = ref(10)
+
+const topOptions = [
+  { value: 5, label: 'Top 5' },
+  { value: 10, label: 'Top 10' },
+  { value: 15, label: 'Top 15' },
+  { value: 20, label: 'Top 20' },
+]
 
 const yearOptions = computed(() => {
   const y = dayjs().year()
@@ -31,7 +39,7 @@ const yearOptions = computed(() => {
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `${i + 1} 月` }))
 
 const requestPayload = computed(() => {
-  const payload = { filter_type: filterType.value }
+  const payload = { filter_type: filterType.value, top: top.value }
   if (filterType.value === 'year') {
     payload.year = year.value
   } else if (filterType.value === 'month') {
@@ -68,7 +76,7 @@ const apiChartOption = computed(() => {
   return {
     title: { text: 'Top 接口调用量排行', left: 'center' },
     tooltip: { trigger: 'axis' },
-    grid: { left: 20, right: 150, top: 36, bottom: 24, containLabel: true },
+    grid: { left: 20, right: 200, top: 36, bottom: 24, containLabel: true },
     xAxis: { type: 'value', name: '调用次数', nameGap: 8 },
     yAxis: {
       name: '接口路径',
@@ -103,7 +111,7 @@ const apiChartOption = computed(() => {
           color: 'rgba(0,0,0,0.85)',
           padding: [0, 0, 0, 2],
           overflow: 'truncate',
-          width: 200,
+          width: 250,
           formatter: ({ dataIndex }) => labels[dataIndex] || '',
         },
       },
@@ -161,7 +169,7 @@ const userChartOption = computed(() => {
 })
 
 onMounted(loadStats)
-watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
+watch([filterType, year, month, dayDate, dateRange, top], loadStats, { deep: true })
 </script>
 
 <template>
@@ -205,6 +213,11 @@ watch([filterType, year, month, dayDate, dateRange], loadStats, { deep: true })
             style="width: 240px"
           />
         </template>
+        <a-select
+          v-model:value="top"
+          style="width: 100px"
+          :options="topOptions"
+        />
         <a-button type="primary" :loading="loading" @click="loadStats">查询</a-button>
       </a-space>
     </div>

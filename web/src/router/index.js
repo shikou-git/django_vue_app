@@ -17,26 +17,6 @@ const router = createRouter({
       component: HomeView,
     },
     {
-      path: '/dashboard',
-      name: 'dashboard',
-      component: () => import('../views/DashboardView.vue'),
-    },
-    {
-      path: '/dashboard/analysis',
-      name: 'dashboard-analysis',
-      component: () => import('../views/DashboardView.vue'),
-    },
-    {
-      path: '/dashboard/monitor',
-      name: 'dashboard-monitor',
-      component: () => import('../views/DashboardView.vue'),
-    },
-    {
-      path: '/dashboard/workplace',
-      name: 'dashboard-workplace',
-      component: () => import('../views/DashboardView.vue'),
-    },
-    {
       path: '/authorization/users',
       name: 'authorization-users',
       component: () => import('../views/authorization/UsersView.vue'),
@@ -55,16 +35,22 @@ const router = createRouter({
       meta: { permission: 'auth.view_permission' },
     },
     {
-      path: '/apilog',
-      name: 'apilog',
-      component: () => import('../views/apilog/ApiLogView.vue'),
-      meta: { permission: 'apilog.view_apilog' },
+      path: '/record/apilog',
+      name: 'record-apilog',
+      component: () => import('@/views/record/ApiLogView.vue'),
+      meta: { permission: 'record.view_apilog' },
     },
     {
-      path: '/api_stats',
-      name: 'api_stats',
-      component: () => import('../views/apilog/ApiStatsView.vue'),
-      meta: { permission: 'apilog.view_apilog' },
+      path: '/record/apistats',
+      name: 'record-apistats',
+      component: () => import('@/views/record/ApiStatsView.vue'),
+      meta: { permission: 'record.view_apilog' },
+    },
+    {
+      path: '/system/base',
+      name: 'system-base',
+      component: () => import('../views/system/BaseSettingsView.vue'),
+      meta: { permission: 'system.change_basesetting' },
     },
     {
       path: '/403',

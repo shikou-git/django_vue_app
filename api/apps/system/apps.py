@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class ApilogConfig(AppConfig):
+class SystemConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "apps.apilog"
+    name = "apps.system"

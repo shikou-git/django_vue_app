@@ -8,8 +8,8 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.decorators import api_view
 
-from apps.apilog.filters import ApiLogFilter
-from apps.apilog.models import ApiLog
+from apps.record.filters import ApiLogFilter
+from apps.record.models import ApiLog
 from utils.custom_decorators import check_permission
 from utils.custom_response import Resp
 
@@ -33,7 +33,7 @@ def _log_to_dict(log):
 
 
 @api_view(["POST"])
-@check_permission("apilog.view_apilog")
+@check_permission("record.view_apilog")
 def get_apilog_list(request):
     """
     接口日志列表：分页、筛选、排序。
@@ -58,9 +58,9 @@ def get_apilog_list(request):
         if order_fields:
             queryset = queryset.order_by(*order_fields)
         else:
-            queryset = queryset.order_by("created_at")
+            queryset = queryset.order_by("-created_at")
     else:
-        queryset = queryset.order_by("created_at")
+        queryset = queryset.order_by("-created_at")
 
     page = data.get("page", 1)
     page_size = data.get("page_size", 10)
@@ -80,7 +80,7 @@ def get_apilog_list(request):
 
 
 @api_view(["POST"])
-@check_permission("apilog.export_apilog")
+@check_permission("record.export_apilog")
 def export_apilog(request):
     """
     导出接口日志为 CSV。使用与列表相同的筛选参数，不分页，最多导出 10000 条。
@@ -98,16 +98,18 @@ def export_apilog(request):
         if log.created_at:
             local_dt = timezone.localtime(log.created_at)
             created_at_str = local_dt.strftime("%Y-%m-%d %H:%M:%S")
-        writer.writerow([
-            log.id,
-            log.path or "",
-            log.method or "",
-            log.status_code or "",
-            log.user_id or "",
-            log.ip_address or "",
-            (log.user_agent or "")[:512],
-            created_at_str,
-        ])
+        writer.writerow(
+            [
+                log.id,
+                log.path or "",
+                log.method or "",
+                log.status_code or "",
+                log.user_id or "",
+                log.ip_address or "",
+                (log.user_agent or "")[:512],
+                created_at_str,
+            ]
+        )
 
     response = HttpResponse(buffer.getvalue(), content_type="text/csv; charset=utf-8-sig")
     filename = f"api_log_{timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -116,7 +118,7 @@ def export_apilog(request):
 
 
 @api_view(["POST"])
-@check_permission("apilog.delete_apilog")
+@check_permission("record.delete_apilog")
 def delete_apilog(request):
     """删除单条接口日志。POST body: id"""
     log_id = request.data.get("id")
@@ -131,7 +133,7 @@ def delete_apilog(request):
 
 
 @api_view(["POST"])
-@check_permission("apilog.delete_apilog")
+@check_permission("record.delete_apilog")
 def batch_delete_apilog(request):
     """批量删除接口日志。POST body: ids (列表)"""
     ids = request.data.get("ids")
@@ -146,7 +148,7 @@ def batch_delete_apilog(request):
 
 
 @api_view(["POST"])
-@check_permission("apilog.view_apilog")
+@check_permission("record.view_apilog")
 def get_filter_options(request):
     """
     获取指定字段的去重选项（用于多选筛选）。
@@ -156,32 +158,22 @@ def get_filter_options(request):
     data = request.data or {}
     field = data.get("field")
     search = (data.get("search") or "").strip()
-    
+
     if field not in ["path", "status_code", "user_id", "ip_address"]:
         return Resp.bad_request(msg="field 必须为 path/status_code/user_id/ip_address")
-    
+
     queryset = ApiLog.objects.all()
     if search:
         queryset = queryset.filter(**{f"{field}__icontains": search})
-    
+
     options = []
     if field == "user_id":
         if not search and queryset.filter(user_id__isnull=True).exists():
             options.append({"label": "空（未登录）", "value": "__null__"})
-        values = (
-            queryset.values_list(field, flat=True)
-            .exclude(**{field: None})
-            .distinct()
-            .order_by(field)[:99]
-        )
+        values = queryset.values_list(field, flat=True).exclude(**{field: None}).distinct().order_by(field)[:99]
         options.extend([{"label": str(v), "value": v} for v in values])
     else:
-        values = (
-            queryset.values_list(field, flat=True)
-            .exclude(**{field: None})
-            .distinct()
-            .order_by(field)[:100]
-        )
+        values = queryset.values_list(field, flat=True).exclude(**{field: None}).distinct().order_by(field)[:100]
         options = [{"label": str(v), "value": v} for v in values]
     return Resp.success(data={"options": options}, msg="获取成功")
 
@@ -263,37 +255,34 @@ def _parse_stats_time_range(data):
 
 
 @api_view(["POST"])
-@check_permission("apilog.view_apilog")
+@check_permission("record.view_apilog")
 def get_api_stats(request):
     """
     接口统计：各接口调用量排行、Top 用户调用量排行。
     POST body: filter_type (year|month|day|range),
                 year, month, day （filter_type 为 year/month/day 时使用），
-                date_start, date_end （filter_type 为 range 时使用，格式 YYYY-MM-DD）
+                date_start, date_end （filter_type 为 range 时使用，格式 YYYY-MM-DD），
+                top （可选，排行条数，默认 30，范围 1-100）
     返回: api_ranking [{ path, method, count }], user_ranking [{ user_id, username, count }]
     """
     data = request.data or {}
+    top = data.get("top")
+    try:
+        top = int(top) if top is not None else 30
+        top = max(1, min(100, top))
+    except (TypeError, ValueError):
+        top = 30
+
     time_range = _parse_stats_time_range(data)
     queryset = ApiLog.objects.all()
     if time_range:
         start_utc, end_utc = time_range
         queryset = queryset.filter(created_at__gte=start_utc, created_at__lte=end_utc)
 
-    api_ranking = (
-        queryset.values("path", "method")
-        .annotate(count=Count("id"))
-        .order_by("-count")[:30]
-    )
-    api_ranking = [
-        {"path": r["path"] or "", "method": r["method"] or "", "count": r["count"]}
-        for r in api_ranking
-    ]
+    api_ranking = queryset.values("path", "method").annotate(count=Count("id")).order_by("-count")[:top]
+    api_ranking = [{"path": r["path"] or "", "method": r["method"] or "", "count": r["count"]} for r in api_ranking]
 
-    user_ranking = (
-        queryset.values("user_id")
-        .annotate(count=Count("id"))
-        .order_by("-count")[:30]
-    )
+    user_ranking = queryset.values("user_id").annotate(count=Count("id")).order_by("-count")[:top]
     user_ids = [r["user_id"] for r in user_ranking if r["user_id"]]
     User = get_user_model()
     usernames = {}

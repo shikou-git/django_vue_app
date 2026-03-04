@@ -1,7 +1,7 @@
 import django_filters
 from django.db.models import Q
 
-from apps.apilog.models import ApiLog
+from apps.record.models import ApiLog
 
 
 class ApiLogFilter(django_filters.FilterSet):
@@ -27,9 +27,7 @@ class ApiLogFilter(django_filters.FilterSet):
 
     def filter_search(self, queryset, name, value):
         if value:
-            return queryset.filter(
-                Q(path__icontains=value) | Q(user_agent__icontains=value)
-            )
+            return queryset.filter(Q(path__icontains=value) | Q(user_agent__icontains=value))
         return queryset
 
     def filter_paths(self, queryset, name, value):

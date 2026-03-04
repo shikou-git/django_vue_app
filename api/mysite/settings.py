@@ -36,7 +36,8 @@ INSTALLED_APPS = [
     "rest_framework",  # Django REST framework
     "rest_framework_simplejwt",  # JWT 认证（无状态，不需要数据库）
     "apps.authorization",
-    "apps.apilog",
+    "apps.record",
+    "apps.system",
 ]
 
 MIDDLEWARE = [
@@ -48,7 +49,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",  # 认证中间件，处理用户认证
     "django.contrib.messages.middleware.MessageMiddleware",  # 消息中间件，处理一次性消息
     "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 点击劫持保护中间件
-    "apps.apilog.middleware.ApiLogMiddleware",
+    "apps.record.middleware.ApiLogMiddleware",
 ]
 
 # ---------- CORS ----------
@@ -76,16 +77,31 @@ TEMPLATES = [
 ]
 WSGI_APPLICATION = "mysite.wsgi.application"  # WSGI应用对象，用于部署
 
-# ---------- 数据库 ----------
-# 未设置 DATABASE_URL 时使用 SQLite；生产可用 psql://user:pass@host:port/dbname
+# 未设置 DATABASE_URL 时使用 SQLite；
+
+# ---------- 数据库（MySQL 5.7）----------
+# 方式一：设置 DATABASE_URL，例如 mysql://user:password@127.0.0.1:3306/dbname
+# 方式二：不设置 DATABASE_URL 时，使用下方 MYSQL_* 环境变量
 _db_url = env("DATABASE_URL", default=None)
 if _db_url:
     DATABASES = {"default": env.db("DATABASE_URL")}
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            # sqlite3 数据库
+            # "ENGINE": "django.db.backends.sqlite3",
+            # "NAME": BASE_DIR / "db.sqlite3",
+            # mysql 数据库
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env("MYSQL_NAME", default="django_vue_app"),
+            "USER": env("MYSQL_USER", default="root"),
+            "PASSWORD": env("MYSQL_PASSWORD", default=""),
+            "HOST": env("MYSQL_HOST", default="127.0.0.1"),
+            "PORT": env("MYSQL_PORT", default="3306"),
+            "OPTIONS": {
+                "charset": "utf8mb4",
+                "init_command": "SET sql_mode='STRICT_TRANS_TABLES', innodb_strict_mode=1; SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            },
         }
     }
 
@@ -128,6 +144,10 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    # 登录接口限流，防止暴力破解（按 IP，如 10 次/分钟）
+    "DEFAULT_THROTTLE_RATES": {
+        "login": env("LOGIN_THROTTLE_RATE", default="3/min"),
+    },
 }
 
 # ---------- Simple JWT ----------
@@ -144,7 +164,7 @@ SIMPLE_JWT = {
 }
 
 # ---------- 接口日志排除路径 ----------
-APILOG_EXCLUDE_PATHS = ["/static/", "/favicon.ico", "/api/apilog"]
+APILOG_EXCLUDE_PATHS = ["/static/", "/favicon.ico", "/api/record"]
 
 # ---------- Loguru 接管 logging ----------
 from utils.custom_logger import setup_logging_intercept

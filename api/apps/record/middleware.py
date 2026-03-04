@@ -2,10 +2,11 @@
 接口日志中间件：在每次请求完成后写入 ApiLog（path、method、status_code、user、ip、user_agent、created_at）。
 支持路径排除列表 APILOG_EXCLUDE_PATHS（前缀匹配则不记录）。
 """
+
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 
-from apps.apilog.models import ApiLog
+from apps.record.models import ApiLog
 
 
 def get_client_ip(request):
