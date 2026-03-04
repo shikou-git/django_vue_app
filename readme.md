@@ -52,6 +52,11 @@ pipdeptree --freeze --warn silence | findstr /r "^[a-zA-Z]" > requirements.txt
 # 迁移
 python manage.py makemigrations
 python manage.py migrate
+
+python manage.py migrate authorization --run-syncdb
+python manage.py migrate record --run-syncdb
+python manage.py migrate system --run-syncdb
+
 python manage.py createsuperuser
 ```
 
