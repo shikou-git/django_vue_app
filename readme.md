@@ -53,6 +53,10 @@ pipdeptree --freeze --warn silence | findstr /r "^[a-zA-Z]" > requirements.txt
 python manage.py makemigrations
 python manage.py migrate
 
+python manage.py makemigrations authorization
+python manage.py makemigrations record
+python manage.py makemigrations system
+
 python manage.py migrate authorization --run-syncdb
 python manage.py migrate record --run-syncdb
 python manage.py migrate system --run-syncdb
