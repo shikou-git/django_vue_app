@@ -13,18 +13,35 @@ import environ
 # 项目根目录：api/
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ===========================
+# 多环境配置（django-environ）
+# ===========================
+
 env = environ.Env(DEBUG=(bool, False), ALLOWED_HOSTS=(list, []))
 
 DJANGO_ENV = os.environ.get("DJANGO_ENV", "dev")  # dev / test / prod 等
-env_file_name = ".env"
-if DJANGO_ENV == "dev":
-    env_file_name = ".env.dev"
-elif DJANGO_ENV == "test":
-    env_file_name = ".env.test"
-elif DJANGO_ENV == "prod":
-    env_file_name = ".env.prod"
 
-environ.Env.read_env(os.path.join(BASE_DIR, env_file_name))
+env_file_map = {
+    "dev": ".env.dev",
+    "test": ".env.test",
+    "prod": ".env.prod",
+}
+
+env_file_name = env_file_map.get(DJANGO_ENV)
+if env_file_name is None:
+    raise ValueError(f"未知的 DJANGO_ENV 值：{DJANGO_ENV}，可选值为 {list(env_file_map.keys())}")
+
+# 先读基础配置
+base_env_path = os.path.join(BASE_DIR, ".env")
+if os.path.exists(base_env_path):
+    environ.Env.read_env(base_env_path)
+
+# 再读环境特定配置，同名变量覆盖基础配置
+specific_env_path = os.path.join(BASE_DIR, env_file_name)
+if not os.path.exists(specific_env_path):
+    raise FileNotFoundError(f"环境配置文件不存在：{specific_env_path}")
+
+environ.Env.read_env(specific_env_path, overwrite=True)
 
 
 # ---------- 安全与基础 ----------
